@@ -1,0 +1,8 @@
+{
+  "name": "Invest in Arm",
+  "description": "Invest in Arm - Smart Micro-Investing & Daily Profit Portal. High-yield micro investment plans, daily arithmetic quizzes, multi-tier referral commissions, instant deposit approvals and fast withdrawals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
