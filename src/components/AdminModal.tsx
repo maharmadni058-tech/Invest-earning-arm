@@ -72,13 +72,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
     if (
       passwordInput.trim() === settings.adminSecretPassword ||
-      passwordInput.trim() === 'Affyisfather' ||
-      passwordInput.trim() === 'admin123'
+      passwordInput.trim() === 'Mahar11223344'
     ) {
       storage.setAdminLoggedIn(true);
       setIsAdminAuth(true);
     } else {
-      setAuthError('Incorrect Admin Secret Key. Try default: Affyisfather or admin123');
+      setAuthError('Incorrect Admin Secret Key. Please verify and try again.');
     }
   };
 
@@ -202,7 +201,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 type="password"
                 value={passwordInput}
                 onChange={e => setPasswordInput(e.target.value)}
-                placeholder="Enter admin password (e.g. Affyisfather)"
+                placeholder="Enter admin password"
                 required
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#070c12] border border-slate-800 text-white text-xs font-mono focus:outline-none focus:border-amber-500 transition text-center"
               />
@@ -212,18 +211,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 transition cursor-pointer"
               >
                 Unlock Admin Dashboard
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPasswordInput('Affyisfather');
-                  storage.setAdminLoggedIn(true);
-                  setIsAdminAuth(true);
-                }}
-                className="w-full py-2 rounded-xl bg-slate-900 text-amber-300 hover:bg-slate-800 text-[11px] font-semibold border border-amber-500/20 cursor-pointer"
-              >
-                1-Click Quick Demo Unlock
               </button>
             </form>
           </div>

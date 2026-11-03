@@ -10,7 +10,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   level2CommissionPercent: 5,
   level3CommissionPercent: 2,
   adminEmail: 'support@investinarm.com',
-  adminSecretPassword: 'Affyisfather',
+  adminSecretPassword: 'Mahar11223344',
   announcementText: '🚀 Welcome to Invest in Arm! Activate a verified micro-investment plan to unlock high-yield daily tasks with guaranteed cash profits. Instant 24/7 withdrawals!',
   enableQuizzes: true,
   supportPhone: '+92 345 9876543',

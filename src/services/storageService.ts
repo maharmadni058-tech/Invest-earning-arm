@@ -60,8 +60,17 @@ class StorageService {
   private init() {
     if (typeof window === 'undefined') return;
 
-    if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
+    const storedSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (!storedSettings) {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
+    } else {
+      try {
+        const s: AppSettings = JSON.parse(storedSettings);
+        if (s.adminSecretPassword === 'Affyisfather' || s.adminSecretPassword === 'admin123' || !s.adminSecretPassword) {
+          s.adminSecretPassword = 'Mahar11223344';
+          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(s));
+        }
+      } catch {}
     }
     if (!localStorage.getItem(STORAGE_KEYS.PLANS)) {
       localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(DEFAULT_PLANS));
