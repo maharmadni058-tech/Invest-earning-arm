@@ -28,141 +28,10 @@ const STORAGE_KEYS = {
   ADMIN_LOGGED_IN: 'invest_in_arm_admin_session_v1',
 };
 
-// Seed default users if none exists
-const SEED_USERS: User[] = [
-  {
-    id: 'user-demo-1',
-    fullName: 'Ali Raza Khan',
-    phone: '03001234567',
-    email: 'aliraza@example.com',
-    password: 'password123',
-    referralCode: 'ARM8842',
-    referredBy: 'ARM0001',
-    balance: 1450,
-    totalDeposited: 5000,
-    totalWithdrawn: 3500,
-    totalProfitEarned: 2450,
-    referralEarnings: 850,
-    activePlanId: 'plan-diamond-5000',
-    activePlanName: 'Diamond Master Plan',
-    planActivatedAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-    planExpiresAt: new Date(Date.now() + 26 * 86400000).toISOString(),
-    dailyTasksCompletedToday: 2,
-    lastTaskDate: new Date().toISOString().split('T')[0],
-    role: 'user',
-    createdAt: new Date(Date.now() - 20 * 86400000).toISOString(),
-    status: 'active'
-  },
-  {
-    id: 'user-ref-1',
-    fullName: 'Hamza Tariq',
-    phone: '03159988776',
-    email: 'hamza@example.com',
-    password: 'password123',
-    referralCode: 'ARM5510',
-    referredBy: 'ARM8842', // Direct referral of Ali Raza
-    balance: 320,
-    totalDeposited: 1500,
-    totalWithdrawn: 1200,
-    totalProfitEarned: 1600,
-    referralEarnings: 200,
-    activePlanId: 'plan-silver-1500',
-    activePlanName: 'Silver Standard Plan',
-    planActivatedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    planExpiresAt: new Date(Date.now() + 28 * 86400000).toISOString(),
-    dailyTasksCompletedToday: 5,
-    lastTaskDate: new Date().toISOString().split('T')[0],
-    role: 'user',
-    createdAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-    status: 'active'
-  },
-  {
-    id: 'user-ref-2',
-    fullName: 'Usman Ghani',
-    phone: '03457788990',
-    email: 'usman@example.com',
-    password: 'password123',
-    referralCode: 'ARM7731',
-    referredBy: 'ARM5510', // Level 2 referral of Ali Raza
-    balance: 180,
-    totalDeposited: 3000,
-    totalWithdrawn: 0,
-    totalProfitEarned: 540,
-    referralEarnings: 0,
-    activePlanId: 'plan-gold-3000',
-    activePlanName: 'Gold Executive Plan',
-    planActivatedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-    planExpiresAt: new Date(Date.now() + 29 * 86400000).toISOString(),
-    dailyTasksCompletedToday: 1,
-    lastTaskDate: new Date().toISOString().split('T')[0],
-    role: 'user',
-    createdAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-    status: 'active'
-  }
-];
+// No demo users by default - real users will register
+const SEED_USERS: User[] = [];
 
-const SEED_TRANSACTIONS: Transaction[] = [
-  {
-    id: 'tx-seed-1',
-    userId: 'user-demo-1',
-    type: 'deposit',
-    amount: 5000,
-    title: 'Deposit Approved',
-    description: 'Easypaisa deposit approved by Finance Team. TID: EP-98442019',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 4 * 86400000).toISOString()
-  },
-  {
-    id: 'tx-seed-2',
-    userId: 'user-demo-1',
-    type: 'plan_activation',
-    amount: -5000,
-    title: 'Diamond Plan Activation',
-    description: 'Subscribed to Diamond Master Plan (30 Days @ Rs. 465/day)',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 4 * 86400000 + 300000).toISOString()
-  },
-  {
-    id: 'tx-seed-3',
-    userId: 'user-demo-1',
-    type: 'withdrawal',
-    amount: -3500,
-    title: 'Cashout Dispatched',
-    description: 'Instant transfer to Easypaisa 03001234567. Ref #WD-8819',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 2 * 86400000).toISOString()
-  },
-  {
-    id: 'tx-seed-4',
-    userId: 'user-demo-1',
-    type: 'referral_bonus',
-    amount: 150,
-    title: 'Level 1 Team Bonus',
-    description: '10% Commission on Hamza Tariq Silver Plan Activation',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 2 * 86400000 + 100000).toISOString()
-  },
-  {
-    id: 'tx-seed-5',
-    userId: 'user-demo-1',
-    type: 'referral_bonus',
-    amount: 150,
-    title: 'Level 2 Team Bonus',
-    description: '5% Commission on Usman Ghani Gold Plan Activation',
-    status: 'completed',
-    createdAt: new Date(Date.now() - 1 * 86400000).toISOString()
-  },
-  {
-    id: 'tx-seed-6',
-    userId: 'user-demo-1',
-    type: 'task_earning',
-    amount: 116.25,
-    title: 'Daily Math Quiz Payout',
-    description: 'Completed 2 arithmetic challenges on Diamond Plan',
-    status: 'completed',
-    createdAt: new Date().toISOString()
-  }
-];
+const SEED_TRANSACTIONS: Transaction[] = [];
 
 class StorageService {
   private listeners: (() => void)[] = [];
@@ -203,14 +72,39 @@ class StorageService {
     if (!localStorage.getItem(STORAGE_KEYS.QUIZZES)) {
       localStorage.setItem(STORAGE_KEYS.QUIZZES, JSON.stringify(DEFAULT_QUIZZES));
     }
-    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(SEED_USERS));
+
+    // Clean up any legacy demo users from localStorage so the user panel is clean
+    const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+    if (currentId === 'user-demo-1' || currentId === 'user-ref-1' || currentId === 'user-ref-2') {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
     }
-    if (!localStorage.getItem(STORAGE_KEYS.TRANSACTIONS)) {
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(SEED_TRANSACTIONS));
+
+    const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
+    if (!storedUsers) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([]));
+    } else {
+      try {
+        const usersList: User[] = JSON.parse(storedUsers);
+        const filtered = usersList.filter(
+          u => u.id !== 'user-demo-1' && u.id !== 'user-ref-1' && u.id !== 'user-ref-2'
+        );
+        if (filtered.length !== usersList.length) {
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filtered));
+        }
+      } catch {}
     }
-    if (!localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID)) {
-      localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, 'user-demo-1');
+
+    const storedTxs = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
+    if (!storedTxs) {
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify([]));
+    } else {
+      try {
+        const txList: Transaction[] = JSON.parse(storedTxs);
+        const filteredTx = txList.filter(t => t.userId !== 'user-demo-1');
+        if (filteredTx.length !== txList.length) {
+          localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(filteredTx));
+        }
+      } catch {}
     }
   }
 
@@ -376,7 +270,7 @@ class StorageService {
       password: data.password || 'password123',
       referralCode: generatedCode,
       referredBy: referredByCode,
-      balance: 100, // Welcome signup bonus Rs. 100
+      balance: 10, // Welcome signup bonus Rs. 10
       totalDeposited: 0,
       totalWithdrawn: 0,
       totalProfitEarned: 0,
@@ -396,13 +290,13 @@ class StorageService {
     this.addTransaction({
       userId: newUser.id,
       type: 'admin_adjustment',
-      amount: 100,
+      amount: 10,
       title: 'Welcome Bonus Credited',
-      description: 'Rs. 100 instant registration reward credited to balance',
+      description: 'Rs. 10 instant registration reward credited to balance',
       status: 'completed'
     });
 
-    return { success: true, message: 'Account registered successfully with Rs. 100 welcome bonus!', user: newUser };
+    return { success: true, message: 'Account registered successfully with Rs. 10 welcome bonus!', user: newUser };
   }
 
   public logout(): void {

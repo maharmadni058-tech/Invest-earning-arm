@@ -94,14 +94,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleDemoLogin = () => {
-    const res = storage.login('03001234567', 'password123');
-    if (res.success && res.user) {
-      onAuthSuccess(res.user);
-      onClose();
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-150">
       <div className="w-full max-w-md rounded-3xl bg-[#0c1622] border border-emerald-500/40 p-5 sm:p-6 shadow-2xl relative">
@@ -162,7 +154,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {mode === 'register' && (
           <div className="mb-4 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center gap-2 text-xs text-emerald-300">
             <Gift className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Get Rs. 100 instant bonus credited upon registration!</span>
+            <span>Get Rs. 10 instant bonus credited upon registration!</span>
           </div>
         )}
 
@@ -252,21 +244,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             type="submit"
             className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20 mt-2"
           >
-            {mode === 'login' ? 'Sign In to Portal' : 'Register & Claim Rs. 100 Bonus'}
+            {mode === 'login' ? 'Sign In to Portal' : 'Register & Claim Rs. 10 Bonus'}
           </button>
         </form>
-
-        {/* Demo Fast Login */}
-        <div className="mt-4 pt-3 border-t border-slate-800/80">
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>1-Click Demo Investor Login (Ali Raza)</span>
-          </button>
-        </div>
       </div>
     </div>
   );

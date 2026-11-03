@@ -65,7 +65,7 @@ export const TeamView: React.FC<TeamViewProps> = ({ user, settings, onOpenAuth }
 
   const handleWhatsAppShare = () => {
     const text = encodeURI(
-      `🔥 Earn daily profit from home with Invest in Arm!\n\nActivate verified investment packages, solve quick math challenges daily, and withdraw instantly via Easypaisa or JazzCash.\n\nJoin with my referral code ${user.referralCode} and get Rs. 100 welcome bonus:\n${inviteUrl}`
+      `🔥 Earn daily profit from home with Invest in Arm!\n\nActivate verified investment packages, solve quick math challenges daily, and withdraw instantly via Easypaisa or JazzCash.\n\nJoin with my referral code ${user.referralCode} and get Rs. 10 welcome bonus:\n${inviteUrl}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };

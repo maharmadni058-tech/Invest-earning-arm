@@ -255,19 +255,13 @@ export default function App() {
                     onClick={() => setIsAuthOpen(true)}
                     className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 text-slate-950 font-extrabold text-sm shadow-xl shadow-emerald-500/25 transition cursor-pointer"
                   >
-                    Create Free Account & Get Rs. 100 Bonus
+                    Create Free Account & Get Rs. 10 Bonus
                   </button>
                   <button
-                    onClick={() => {
-                      const res = storage.login('03001234567', 'password123');
-                      if (res.user) {
-                        setCurrentUser(res.user);
-                        showToast('Logged in as Demo Investor (Ali Raza Khan)!', 'success');
-                      }
-                    }}
-                    className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-emerald-400 font-bold text-xs transition cursor-pointer"
+                    onClick={() => setIsAuthOpen(true)}
+                    className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white font-bold text-xs transition cursor-pointer"
                   >
-                    ⚡ 1-Click Demo Investor Preview
+                    Sign In to Account
                   </button>
                 </div>
               </div>
