@@ -124,13 +124,13 @@ export default function App() {
     setIsWithdrawOpen(true);
   };
 
-  const handleActivateWithBalance = (plan: InvestmentPlan) => {
+  const handleActivateWithBalance = async (plan: InvestmentPlan) => {
     if (!currentUser) {
       setIsAuthOpen(true);
       return;
     }
 
-    const res = storage.activatePlan(currentUser.id, plan.id, true);
+    const res = await storage.activatePlan(currentUser.id, plan.id, true);
     if (res.success) {
       showToast(res.message, 'success');
       setCurrentTab('tasks');

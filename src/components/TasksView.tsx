@@ -66,12 +66,12 @@ export const TasksView: React.FC<TasksViewProps> = ({
     setSelectedOption(idx);
   };
 
-  const handleSubmitAnswer = () => {
+  const handleSubmitAnswer = async () => {
     if (!user || !activeQuiz || selectedOption === null) return;
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      const res = storage.submitTaskQuiz(user.id, activeQuiz.id, selectedOption);
+    try {
+      const res = await storage.submitTaskQuiz(user.id, activeQuiz.id, selectedOption);
       setIsSubmitting(false);
       setQuizResult({
         submitted: true,
@@ -90,7 +90,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
         });
         onTaskCompleted();
       }
-    }, 400);
+    } catch {
+      setIsSubmitting(false);
+    }
   };
 
   const handleCloseQuiz = () => {

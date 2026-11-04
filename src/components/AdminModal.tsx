@@ -95,48 +95,39 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const totalBalanceInCirculation = users.reduce((acc, u) => acc + (u.balance || 0), 0);
 
   // Actions
-  const handleApproveDeposit = (depositId: string) => {
-    storage.approveDeposit(depositId);
+  const handleApproveDeposit = async (depositId: string) => {
+    await storage.approveDeposit(depositId);
     onDataChanged();
   };
 
-  const handleConfirmReject = () => {
+  const handleConfirmReject = async () => {
     if (!rejectItem) return;
     if (rejectItem.type === 'deposit') {
-      storage.rejectDeposit(rejectItem.id, rejectReason || 'Payment not received in account');
+      await storage.rejectDeposit(rejectItem.id, rejectReason || 'Payment not received in account');
     } else {
-      storage.rejectWithdrawal(rejectItem.id, rejectReason || 'Account details mismatch');
+      await storage.rejectWithdrawal(rejectItem.id, rejectReason || 'Account details mismatch');
     }
     setRejectItem(null);
     setRejectReason('');
     onDataChanged();
   };
 
-  const handleApproveWithdrawal = (wdId: string) => {
-    storage.approveWithdrawal(wdId);
+  const handleApproveWithdrawal = async (wdId: string) => {
+    await storage.approveWithdrawal(wdId);
     onDataChanged();
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    storage.saveSettings(formSettings);
+    await storage.saveSettings(formSettings);
     onDataChanged();
     alert('Settings updated successfully!');
   };
 
-  const handleAdjustBalance = (e: React.FormEvent) => {
+  const handleAdjustBalance = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustUser) return;
-    adjustUser.balance += Number(adjustAmount);
-    storage.updateUser(adjustUser);
-    storage.addTransaction({
-      userId: adjustUser.id,
-      type: 'admin_adjustment',
-      amount: Number(adjustAmount),
-      title: 'Admin Manual Credit/Debit',
-      description: `Manual balance adjustment of Rs. ${adjustAmount} processed by Master Admin`,
-      status: 'completed'
-    });
+    await storage.adjustUserBalance(adjustUser.id, Number(adjustAmount));
     setAdjustUser(null);
     onDataChanged();
   };

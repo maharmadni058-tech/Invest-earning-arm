@@ -28,13 +28,9 @@ const STORAGE_KEYS = {
   ADMIN_LOGGED_IN: 'invest_in_arm_admin_session_v1',
 };
 
-// No demo users by default - real users will register
-const SEED_USERS: User[] = [];
-
-const SEED_TRANSACTIONS: Transaction[] = [];
-
 class StorageService {
   private listeners: (() => void)[] = [];
+  private syncTimer: any = null;
 
   constructor() {
     this.init();
@@ -47,7 +43,7 @@ class StorageService {
     };
   }
 
-  private notify() {
+  public notify() {
     this.listeners.forEach(cb => {
       try {
         cb();
@@ -60,17 +56,9 @@ class StorageService {
   private init() {
     if (typeof window === 'undefined') return;
 
-    const storedSettings = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    if (!storedSettings) {
+    // Load defaults if missing
+    if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
-    } else {
-      try {
-        const s: AppSettings = JSON.parse(storedSettings);
-        if (s.adminSecretPassword === 'Affyisfather' || s.adminSecretPassword === 'admin123' || !s.adminSecretPassword) {
-          s.adminSecretPassword = 'Mahar11223344';
-          localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(s));
-        }
-      } catch {}
     }
     if (!localStorage.getItem(STORAGE_KEYS.PLANS)) {
       localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(DEFAULT_PLANS));
@@ -81,39 +69,67 @@ class StorageService {
     if (!localStorage.getItem(STORAGE_KEYS.QUIZZES)) {
       localStorage.setItem(STORAGE_KEYS.QUIZZES, JSON.stringify(DEFAULT_QUIZZES));
     }
+    if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
+      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.TRANSACTIONS)) {
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.DEPOSITS)) {
+      localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.WITHDRAWALS)) {
+      localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify([]));
+    }
 
-    // Clean up any legacy demo users from localStorage so the user panel is clean
+    // Purge any legacy demo user from session
     const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
     if (currentId === 'user-demo-1' || currentId === 'user-ref-1' || currentId === 'user-ref-2') {
       localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
     }
 
-    const storedUsers = localStorage.getItem(STORAGE_KEYS.USERS);
-    if (!storedUsers) {
-      localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([]));
-    } else {
-      try {
-        const usersList: User[] = JSON.parse(storedUsers);
-        const filtered = usersList.filter(
-          u => u.id !== 'user-demo-1' && u.id !== 'user-ref-1' && u.id !== 'user-ref-2'
-        );
-        if (filtered.length !== usersList.length) {
-          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(filtered));
-        }
-      } catch {}
-    }
+    // Immediate server sync
+    this.syncFromServer();
 
-    const storedTxs = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-    if (!storedTxs) {
-      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify([]));
-    } else {
-      try {
-        const txList: Transaction[] = JSON.parse(storedTxs);
-        const filteredTx = txList.filter(t => t.userId !== 'user-demo-1');
-        if (filteredTx.length !== txList.length) {
-          localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(filteredTx));
+    // Start background sync every 5 seconds so multi-mobile changes reflect in real-time
+    if (!this.syncTimer) {
+      this.syncTimer = setInterval(() => {
+        this.syncFromServer();
+      }, 5000);
+    }
+  }
+
+  // --- SERVER SYNC ---
+  public async syncFromServer(): Promise<void> {
+    try {
+      const res = await fetch('/api/state');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data.settings));
+        if (data.plans) localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(data.plans));
+        if (data.paymentMethods) localStorage.setItem(STORAGE_KEYS.PAYMENT_METHODS, JSON.stringify(data.paymentMethods));
+        if (data.quizzes) localStorage.setItem(STORAGE_KEYS.QUIZZES, JSON.stringify(data.quizzes));
+        if (data.deposits) localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(data.deposits));
+        if (data.withdrawals) localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(data.withdrawals));
+        if (data.transactions) localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(data.transactions));
+        if (data.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data.users));
+
+        const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+        if (currentId) {
+          const userRes = await fetch(`/api/auth/me/${currentId}`);
+          if (userRes.ok) {
+            const userData = await userRes.json();
+            if (userData.user) {
+              const users = this.getUsers().filter(u => u.id !== userData.user.id);
+              users.push(userData.user);
+              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+            }
+          }
         }
-      } catch {}
+        this.notify();
+      }
+    } catch (e) {
+      // offline or server restarting
     }
   }
 
@@ -122,15 +138,20 @@ class StorageService {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SETTINGS);
       if (data) return JSON.parse(data);
-    } catch (e) {
-      console.warn('Error reading settings', e);
-    }
+    } catch (e) {}
     return DEFAULT_SETTINGS;
   }
 
-  public saveSettings(settings: AppSettings): void {
+  public async saveSettings(settings: AppSettings): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
     this.notify();
+    try {
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings, adminPassword: settings.adminSecretPassword })
+      });
+    } catch {}
   }
 
   // --- PLANS ---
@@ -186,7 +207,7 @@ class StorageService {
       const data = localStorage.getItem(STORAGE_KEYS.USERS);
       if (data) return JSON.parse(data);
     } catch {}
-    return SEED_USERS;
+    return [];
   }
 
   public saveUsers(users: User[]): void {
@@ -201,7 +222,6 @@ class StorageService {
     const user = users.find(u => u.id === currentId);
     if (!user) return null;
 
-    // Check daily task reset
     const todayStr = new Date().toISOString().split('T')[0];
     if (user.lastTaskDate !== todayStr) {
       user.dailyTasksCompletedToday = 0;
@@ -226,86 +246,101 @@ class StorageService {
     this.notify();
   }
 
-  public login(phoneOrEmail: string, password?: string): { success: boolean; message: string; user?: User } {
-    const clean = phoneOrEmail.trim().toLowerCase();
-    const users = this.getUsers();
-    const user = users.find(
-      u => u.phone.toLowerCase() === clean || (u.email && u.email.toLowerCase() === clean)
-    );
-
-    if (!user) {
-      return { success: false, message: 'Account not found. Please register a new account.' };
+  // Centralized Server Auth Login (works across all mobiles)
+  public async login(
+    phoneOrEmail: string,
+    password?: string
+  ): Promise<{ success: boolean; message: string; user?: User }> {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneOrEmail, password })
+      });
+      const data = await res.json();
+      if (data.success && data.user) {
+        this.setCurrentUserId(data.user.id);
+        const users = this.getUsers().filter(u => u.id !== data.user.id);
+        users.push(data.user);
+        this.saveUsers(users);
+        await this.syncFromServer();
+        return { success: true, message: data.message, user: data.user };
+      }
+      return { success: false, message: data.message || 'Login failed.' };
+    } catch (err) {
+      // Offline fallback
+      const clean = phoneOrEmail.trim().toLowerCase();
+      const users = this.getUsers();
+      const user = users.find(
+        u => u.phone.toLowerCase() === clean || (u.email && u.email.toLowerCase() === clean)
+      );
+      if (!user) {
+        return { success: false, message: 'Account not found. Please register a new account.' };
+      }
+      if (password && user.password && user.password !== password) {
+        return { success: false, message: 'Invalid password. Please check and try again.' };
+      }
+      this.setCurrentUserId(user.id);
+      return { success: true, message: 'Login successful!', user };
     }
-
-    if (password && user.password && user.password !== password) {
-      return { success: false, message: 'Invalid password. Please check and try again.' };
-    }
-
-    this.setCurrentUserId(user.id);
-    return { success: true, message: 'Login successful!', user };
   }
 
-  public register(data: {
+  // Centralized Server Auth Register (stored on server for all mobiles)
+  public async register(data: {
     fullName: string;
     phone: string;
     email?: string;
     password?: string;
     referralCode?: string;
-  }): { success: boolean; message: string; user?: User } {
-    const users = this.getUsers();
-    const cleanPhone = data.phone.trim();
-    if (users.some(u => u.phone === cleanPhone)) {
-      return { success: false, message: 'An account with this phone number already exists. Please login.' };
-    }
-
-    // Generate unique referral code
-    const generatedCode = 'ARM' + Math.floor(1000 + Math.random() * 9000);
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    // Find referred by user
-    let referredByCode = data.referralCode?.trim().toUpperCase();
-    if (referredByCode) {
-      const refUser = users.find(u => u.referralCode === referredByCode);
-      if (!refUser) {
-        referredByCode = undefined; // Invalid code, ignored
+  }): Promise<{ success: boolean; message: string; user?: User }> {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const resData = await res.json();
+      if (resData.success && resData.user) {
+        this.setCurrentUserId(resData.user.id);
+        const users = this.getUsers().filter(u => u.id !== resData.user.id);
+        users.push(resData.user);
+        this.saveUsers(users);
+        await this.syncFromServer();
+        return { success: true, message: resData.message, user: resData.user };
       }
+      return { success: false, message: resData.message || 'Registration failed.' };
+    } catch (err) {
+      // Offline fallback
+      const cleanPhone = data.phone.trim();
+      const users = this.getUsers();
+      if (users.some(u => u.phone === cleanPhone)) {
+        return { success: false, message: 'An account with this mobile already exists.' };
+      }
+      const generatedCode = 'ARM' + Math.floor(1000 + Math.random() * 9000);
+      const todayStr = new Date().toISOString().split('T')[0];
+      const newUser: User = {
+        id: 'user-' + Date.now(),
+        fullName: data.fullName.trim() || 'Investor',
+        phone: cleanPhone,
+        password: data.password || 'password123',
+        referralCode: generatedCode,
+        referredBy: data.referralCode?.trim().toUpperCase(),
+        balance: 10,
+        totalDeposited: 0,
+        totalWithdrawn: 0,
+        totalProfitEarned: 0,
+        referralEarnings: 0,
+        dailyTasksCompletedToday: 0,
+        lastTaskDate: todayStr,
+        role: 'user',
+        createdAt: new Date().toISOString(),
+        status: 'active'
+      };
+      users.push(newUser);
+      this.saveUsers(users);
+      this.setCurrentUserId(newUser.id);
+      return { success: true, message: 'Account registered with Rs. 10 bonus!', user: newUser };
     }
-
-    const newUser: User = {
-      id: 'user-' + Date.now(),
-      fullName: data.fullName.trim() || 'Investor',
-      phone: cleanPhone,
-      email: data.email?.trim() || '',
-      password: data.password || 'password123',
-      referralCode: generatedCode,
-      referredBy: referredByCode,
-      balance: 10, // Welcome signup bonus Rs. 10
-      totalDeposited: 0,
-      totalWithdrawn: 0,
-      totalProfitEarned: 0,
-      referralEarnings: 0,
-      dailyTasksCompletedToday: 0,
-      lastTaskDate: todayStr,
-      role: 'user',
-      createdAt: new Date().toISOString(),
-      status: 'active'
-    };
-
-    users.push(newUser);
-    this.saveUsers(users);
-    this.setCurrentUserId(newUser.id);
-
-    // Add welcome bonus transaction
-    this.addTransaction({
-      userId: newUser.id,
-      type: 'admin_adjustment',
-      amount: 10,
-      title: 'Welcome Bonus Credited',
-      description: 'Rs. 10 instant registration reward credited to balance',
-      status: 'completed'
-    });
-
-    return { success: true, message: 'Account registered successfully with Rs. 10 welcome bonus!', user: newUser };
   }
 
   public logout(): void {
@@ -318,25 +353,7 @@ class StorageService {
       const data = localStorage.getItem(STORAGE_KEYS.DEPOSITS);
       if (data) return JSON.parse(data);
     } catch {}
-    return [
-      {
-        id: 'dep-seed-1',
-        userId: 'user-demo-1',
-        userName: 'Ali Raza Khan',
-        userPhone: '03001234567',
-        planId: 'plan-diamond-5000',
-        planName: 'Diamond Master Plan',
-        amount: 5000,
-        paymentMethodId: 'pm-easypaisa-official',
-        paymentMethodName: 'Easypaisa Direct Account',
-        paymentType: 'easypaisa',
-        transactionId: 'EP-98442019',
-        senderAccountNumber: '03001234567',
-        status: 'approved',
-        createdAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-        reviewedAt: new Date(Date.now() - 4 * 86400000 + 900000).toISOString()
-      }
-    ];
+    return [];
   }
 
   public saveDeposits(deposits: Deposit[]): void {
@@ -344,14 +361,15 @@ class StorageService {
     this.notify();
   }
 
-  public createDeposit(depositData: Omit<Deposit, 'id' | 'status' | 'createdAt'>): Deposit {
-    const deposits = this.getDeposits();
+  public async createDeposit(depositData: Omit<Deposit, 'id' | 'status' | 'createdAt'>): Promise<Deposit> {
+    const tempId = 'dep-' + Date.now();
     const newDeposit: Deposit = {
       ...depositData,
-      id: 'dep-' + Date.now(),
+      id: tempId,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
+    const deposits = this.getDeposits();
     deposits.unshift(newDeposit);
     this.saveDeposits(deposits);
 
@@ -364,73 +382,70 @@ class StorageService {
       status: 'pending'
     });
 
+    try {
+      const res = await fetch('/api/deposits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(depositData)
+      });
+      if (res.ok) {
+        await this.syncFromServer();
+      }
+    } catch {}
+
     return newDeposit;
   }
 
-  public approveDeposit(depositId: string): void {
+  public async approveDeposit(depositId: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/deposits/${depositId}/approve`, { method: 'POST' });
+      if (res.ok) {
+        await this.syncFromServer();
+        return;
+      }
+    } catch {}
+
+    // Local fallback
     const deposits = this.getDeposits();
     const deposit = deposits.find(d => d.id === depositId);
     if (!deposit || deposit.status !== 'pending') return;
-
     deposit.status = 'approved';
     deposit.reviewedAt = new Date().toISOString();
     this.saveDeposits(deposits);
 
-    // Credit user
     const users = this.getUsers();
     const user = users.find(u => u.id === deposit.userId);
     if (user) {
       user.balance += deposit.amount;
       user.totalDeposited += deposit.amount;
       this.updateUser(user);
-
-      // Auto-activate plan if selected during deposit
       if (deposit.planId) {
         this.activatePlan(user.id, deposit.planId, true);
       }
     }
-
-    // Update transaction status
-    const txs = this.getTransactions();
-    const tx = txs.find(t => t.userId === deposit.userId && t.type === 'deposit' && t.status === 'pending');
-    if (tx) {
-      tx.status = 'completed';
-      tx.title = 'Deposit Approved & Added';
-      tx.description = `Rs. ${deposit.amount.toLocaleString()} credited to wallet. TRX: ${deposit.transactionId}`;
-      this.saveTransactions(txs);
-    } else {
-      this.addTransaction({
-        userId: deposit.userId,
-        type: 'deposit',
-        amount: deposit.amount,
-        title: 'Deposit Approved & Added',
-        description: `Rs. ${deposit.amount.toLocaleString()} credited to wallet. TRX: ${deposit.transactionId}`,
-        status: 'completed'
-      });
-    }
-
     this.notify();
   }
 
-  public rejectDeposit(depositId: string, reason?: string): void {
+  public async rejectDeposit(depositId: string, reason?: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/deposits/${depositId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      if (res.ok) {
+        await this.syncFromServer();
+        return;
+      }
+    } catch {}
+
     const deposits = this.getDeposits();
     const deposit = deposits.find(d => d.id === depositId);
     if (!deposit || deposit.status !== 'pending') return;
-
     deposit.status = 'rejected';
     deposit.reviewedAt = new Date().toISOString();
-    deposit.notes = reason || 'Payment could not be verified on financial statement.';
+    deposit.notes = reason || 'Payment could not be verified.';
     this.saveDeposits(deposits);
-
-    this.addTransaction({
-      userId: deposit.userId,
-      type: 'deposit',
-      amount: deposit.amount,
-      title: 'Deposit Rejected',
-      description: reason || 'Transaction ID not found or mismatched.',
-      status: 'rejected'
-    });
-
     this.notify();
   }
 
@@ -440,23 +455,7 @@ class StorageService {
       const data = localStorage.getItem(STORAGE_KEYS.WITHDRAWALS);
       if (data) return JSON.parse(data);
     } catch {}
-    return [
-      {
-        id: 'wd-seed-1',
-        userId: 'user-demo-1',
-        userName: 'Ali Raza Khan',
-        userPhone: '03001234567',
-        amount: 3500,
-        paymentMethodType: 'easypaisa',
-        accountTitle: 'Ali Raza Khan',
-        accountNumber: '03001234567',
-        status: 'approved',
-        fee: 0,
-        netAmount: 3500,
-        createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-        reviewedAt: new Date(Date.now() - 2 * 86400000 + 1200000).toISOString()
-      }
-    ];
+    return [];
   }
 
   public saveWithdrawals(withdrawals: Withdrawal[]): void {
@@ -464,7 +463,7 @@ class StorageService {
     this.notify();
   }
 
-  public createWithdrawal(data: {
+  public async createWithdrawal(data: {
     userId: string;
     userName: string;
     userPhone: string;
@@ -473,323 +472,204 @@ class StorageService {
     accountTitle: string;
     accountNumber: string;
     bankName?: string;
-  }): { success: boolean; message: string; withdrawal?: Withdrawal } {
-    const settings = this.getSettings();
-    if (data.amount < settings.minWithdrawal) {
-      return {
-        success: false,
-        message: `Minimum cashout amount is ${settings.currencySymbol} ${settings.minWithdrawal}.`
+  }): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+    try {
+      const res = await fetch('/api/withdrawals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const resData = await res.json();
+      if (resData.success) {
+        await this.syncFromServer();
+        return resData;
+      }
+      return { success: false, message: resData.message || 'Withdrawal failed' };
+    } catch (e) {
+      // Local fallback
+      const settings = this.getSettings();
+      if (data.amount < settings.minWithdrawal) {
+        return { success: false, message: `Minimum cashout is Rs. ${settings.minWithdrawal}` };
+      }
+      const users = this.getUsers();
+      const user = users.find(u => u.id === data.userId);
+      if (!user || user.balance < data.amount) {
+        return { success: false, message: 'Insufficient balance' };
+      }
+      user.balance -= data.amount;
+      this.updateUser(user);
+      const newWithdrawal: Withdrawal = {
+        ...data,
+        id: 'wd-' + Date.now(),
+        status: 'pending',
+        fee: 0,
+        netAmount: data.amount,
+        createdAt: new Date().toISOString()
       };
+      const withdrawals = this.getWithdrawals();
+      withdrawals.unshift(newWithdrawal);
+      this.saveWithdrawals(withdrawals);
+      return { success: true, message: 'Withdrawal submitted!', withdrawal: newWithdrawal };
     }
-
-    const users = this.getUsers();
-    const user = users.find(u => u.id === data.userId);
-    if (!user) return { success: false, message: 'User not found' };
-
-    if (user.balance < data.amount) {
-      return { success: false, message: 'Insufficient wallet balance.' };
-    }
-
-    // Deduct balance upfront
-    user.balance -= data.amount;
-    this.updateUser(user);
-
-    const withdrawals = this.getWithdrawals();
-    const newWithdrawal: Withdrawal = {
-      ...data,
-      id: 'wd-' + Date.now(),
-      status: 'pending',
-      fee: 0,
-      netAmount: data.amount,
-      createdAt: new Date().toISOString()
-    };
-
-    withdrawals.unshift(newWithdrawal);
-    this.saveWithdrawals(withdrawals);
-
-    this.addTransaction({
-      userId: data.userId,
-      type: 'withdrawal',
-      amount: -data.amount,
-      title: 'Withdrawal Processing',
-      description: `Request for Rs. ${data.amount.toLocaleString()} sent to ${data.paymentMethodType.toUpperCase()} (${data.accountNumber}).`,
-      status: 'pending'
-    });
-
-    return {
-      success: true,
-      message: 'Withdrawal request submitted! Payout will be sent within 15-30 minutes.',
-      withdrawal: newWithdrawal
-    };
   }
 
-  public approveWithdrawal(withdrawalId: string, remarks?: string): void {
+  public async approveWithdrawal(withdrawalId: string, remarks?: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/withdrawals/${withdrawalId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ remarks })
+      });
+      if (res.ok) {
+        await this.syncFromServer();
+        return;
+      }
+    } catch {}
+
     const withdrawals = this.getWithdrawals();
     const wd = withdrawals.find(w => w.id === withdrawalId);
     if (!wd || wd.status !== 'pending') return;
-
     wd.status = 'approved';
     wd.reviewedAt = new Date().toISOString();
-    wd.remarks = remarks || 'Successfully transferred via Gateway';
     this.saveWithdrawals(withdrawals);
-
-    const users = this.getUsers();
-    const user = users.find(u => u.id === wd.userId);
-    if (user) {
-      user.totalWithdrawn += wd.amount;
-      this.updateUser(user);
-    }
-
-    this.addTransaction({
-      userId: wd.userId,
-      type: 'withdrawal',
-      amount: -wd.amount,
-      title: 'Withdrawal Completed & Dispatched',
-      description: `Transferred Rs. ${wd.amount.toLocaleString()} to ${wd.paymentMethodType.toUpperCase()} ${wd.accountNumber}.`,
-      status: 'completed'
-    });
-
     this.notify();
   }
 
-  public rejectWithdrawal(withdrawalId: string, reason?: string): void {
+  public async rejectWithdrawal(withdrawalId: string, reason?: string): Promise<void> {
+    try {
+      const res = await fetch(`/api/withdrawals/${withdrawalId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+      if (res.ok) {
+        await this.syncFromServer();
+        return;
+      }
+    } catch {}
+
     const withdrawals = this.getWithdrawals();
     const wd = withdrawals.find(w => w.id === withdrawalId);
     if (!wd || wd.status !== 'pending') return;
-
     wd.status = 'rejected';
-    wd.reviewedAt = new Date().toISOString();
-    wd.remarks = reason || 'Incorrect account title / account number.';
     this.saveWithdrawals(withdrawals);
-
-    // Refund user balance
     const users = this.getUsers();
     const user = users.find(u => u.id === wd.userId);
     if (user) {
       user.balance += wd.amount;
       this.updateUser(user);
     }
-
-    this.addTransaction({
-      userId: wd.userId,
-      type: 'admin_adjustment',
-      amount: wd.amount,
-      title: 'Withdrawal Refunded',
-      description: `Rs. ${wd.amount.toLocaleString()} returned to wallet. Reason: ${reason || 'Details mismatched'}.`,
-      status: 'completed'
-    });
-
     this.notify();
   }
 
-  // --- PLAN ACTIVATION & MULTI-TIER COMMISSIONS ---
-  public activatePlan(userId: string, planId: string, payFromBalance = true): { success: boolean; message: string } {
-    const plans = this.getPlans();
-    const plan = plans.find(p => p.id === planId);
-    if (!plan) return { success: false, message: 'Plan not found.' };
-
-    const users = this.getUsers();
-    const user = users.find(u => u.id === userId);
-    if (!user) return { success: false, message: 'User not found.' };
-
-    if (payFromBalance) {
-      if (user.balance < plan.price) {
-        return {
-          success: false,
-          message: `Insufficient balance. Please deposit at least Rs. ${(plan.price - user.balance).toLocaleString()} to activate this plan.`
-        };
-      }
-      user.balance -= plan.price;
-    }
-
-    const now = new Date();
-    const expires = new Date(now.getTime() + plan.validityDays * 86400000);
-
-    user.activePlanId = plan.id;
-    user.activePlanName = plan.name;
-    user.planActivatedAt = now.toISOString();
-    user.planExpiresAt = expires.toISOString();
-    user.dailyTasksCompletedToday = 0;
-    user.lastTaskDate = now.toISOString().split('T')[0];
-
-    this.updateUser(user);
-
-    this.addTransaction({
-      userId: user.id,
-      type: 'plan_activation',
-      amount: -plan.price,
-      title: `${plan.name} Activated`,
-      description: `30-Day contract started. Daily yield: Rs. ${plan.dailyMinEarn} across ${plan.dailyTaskCount} math tasks.`,
-      status: 'completed'
-    });
-
-    // DISTRIBUTE 3-TIER REFERRAL COMMISSIONS!
-    this.distributeReferralCommissions(user, plan);
-
-    this.notify();
-    return { success: true, message: `Congratulations! ${plan.name} is now active. Daily tasks are unlocked!` };
-  }
-
-  private distributeReferralCommissions(investor: User, plan: InvestmentPlan): void {
-    if (!investor.referredBy) return;
-
-    const settings = this.getSettings();
-    const users = this.getUsers();
-
-    // Level 1 Referrer
-    const level1User = users.find(u => u.referralCode === investor.referredBy);
-    if (level1User) {
-      const bonus1 = (plan.price * settings.level1CommissionPercent) / 100;
-      level1User.balance += bonus1;
-      level1User.referralEarnings += bonus1;
-      this.updateUser(level1User);
-
-      this.addTransaction({
-        userId: level1User.id,
-        type: 'referral_bonus',
-        amount: bonus1,
-        title: 'Level-1 Direct Referral Bonus',
-        description: `${settings.level1CommissionPercent}% Commission on ${investor.fullName}'s ${plan.name} activation`,
-        status: 'completed'
+  // --- PLAN ACTIVATION ---
+  public async activatePlan(
+    userId: string,
+    planId: string,
+    payFromBalance = true
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch('/api/plans/activate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, planId, payFromBalance })
       });
-
-      // Level 2 Referrer
-      if (level1User.referredBy) {
-        const level2User = users.find(u => u.referralCode === level1User.referredBy);
-        if (level2User) {
-          const bonus2 = (plan.price * settings.level2CommissionPercent) / 100;
-          level2User.balance += bonus2;
-          level2User.referralEarnings += bonus2;
-          this.updateUser(level2User);
-
-          this.addTransaction({
-            userId: level2User.id,
-            type: 'referral_bonus',
-            amount: bonus2,
-            title: 'Level-2 Team Member Bonus',
-            description: `${settings.level2CommissionPercent}% Tier-2 Commission on ${investor.fullName}'s plan activation`,
-            status: 'completed'
-          });
-
-          // Level 3 Referrer
-          if (level2User.referredBy) {
-            const level3User = users.find(u => u.referralCode === level2User.referredBy);
-            if (level3User) {
-              const bonus3 = (plan.price * settings.level3CommissionPercent) / 100;
-              level3User.balance += bonus3;
-              level3User.referralEarnings += bonus3;
-              this.updateUser(level3User);
-
-              this.addTransaction({
-                userId: level3User.id,
-                type: 'referral_bonus',
-                amount: bonus3,
-                title: 'Level-3 Team Member Bonus',
-                description: `${settings.level3CommissionPercent}% Tier-3 Commission on ${investor.fullName}'s plan activation`,
-                status: 'completed'
-              });
-            }
-          }
-        }
+      const data = await res.json();
+      if (data.success) {
+        await this.syncFromServer();
+        return data;
       }
+      return { success: false, message: data.message || 'Plan activation failed' };
+    } catch (e) {
+      const plans = this.getPlans();
+      const plan = plans.find(p => p.id === planId);
+      if (!plan) return { success: false, message: 'Plan not found.' };
+
+      const users = this.getUsers();
+      const user = users.find(u => u.id === userId);
+      if (!user) return { success: false, message: 'User not found.' };
+
+      if (payFromBalance) {
+        if (user.balance < plan.price) {
+          return { success: false, message: `Insufficient balance for ${plan.name}` };
+        }
+        user.balance -= plan.price;
+      }
+
+      user.activePlanId = plan.id;
+      user.activePlanName = plan.name;
+      user.planActivatedAt = new Date().toISOString();
+      user.dailyTasksCompletedToday = 0;
+      this.updateUser(user);
+      return { success: true, message: `${plan.name} is now active!` };
     }
   }
 
   // --- TASK QUIZ EARNINGS ---
-  public submitTaskQuiz(userId: string, taskQuizId: string, selectedOptionIndex: number): {
+  public async submitTaskQuiz(
+    userId: string,
+    taskQuizId: string,
+    selectedOptionIndex: number
+  ): Promise<{
     success: boolean;
     isCorrect: boolean;
     reward: number;
     explanation: string;
     message: string;
-  } {
-    const user = this.getCurrentUser();
-    if (!user || user.id !== userId) {
-      return { success: false, isCorrect: false, reward: 0, explanation: '', message: 'User not authenticated' };
-    }
-
-    if (!user.activePlanId) {
+  }> {
+    try {
+      const res = await fetch('/api/tasks/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, taskQuizId, selectedOptionIndex })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await this.syncFromServer();
+        return data;
+      }
       return {
         success: false,
         isCorrect: false,
         reward: 0,
         explanation: '',
-        message: 'No active plan! Please activate a plan from the Plans tab to earn daily task cash.'
+        message: data.message || 'Task submission failed'
       };
-    }
-
-    const plans = this.getPlans();
-    const activePlan = plans.find(p => p.id === user.activePlanId);
-    if (!activePlan) {
-      return { success: false, isCorrect: false, reward: 0, explanation: '', message: 'Plan details expired.' };
-    }
-
-    if (user.dailyTasksCompletedToday >= activePlan.dailyTaskCount) {
+    } catch (e) {
       return {
         success: false,
         isCorrect: false,
         reward: 0,
         explanation: '',
-        message: `Daily limit reached! You have finished all ${activePlan.dailyTaskCount} tasks for today. Reset at midnight.`
+        message: 'Network error. Please try again.'
       };
     }
+  }
 
-    const quizzes = this.getQuizzes();
-    const quiz = quizzes.find(q => q.id === taskQuizId);
-    if (!quiz) {
-      return { success: false, isCorrect: false, reward: 0, explanation: '', message: 'Quiz not found' };
-    }
-
-    const isCorrect = selectedOptionIndex === quiz.quizData.correctIndex;
-    const taskReward = Number((activePlan.dailyMinEarn / activePlan.dailyTaskCount).toFixed(2));
-
-    if (!isCorrect) {
-      return {
-        success: true,
-        isCorrect: false,
-        reward: 0,
-        explanation: quiz.quizData.explanation,
-        message: 'Incorrect answer. Read the formula and try the next challenge!'
-      };
-    }
-
-    // Award reward to user
-    user.balance += taskReward;
-    user.totalProfitEarned += taskReward;
-    user.dailyTasksCompletedToday += 1;
-    this.updateUser(user);
-
-    this.addTransaction({
-      userId: user.id,
-      type: 'task_earning',
-      amount: taskReward,
-      title: 'Daily Math Task Reward',
-      description: `Solved ${quiz.title} on ${activePlan.name} (${user.dailyTasksCompletedToday}/${activePlan.dailyTaskCount})`,
-      status: 'completed'
-    });
-
-    this.notify();
-
-    return {
-      success: true,
-      isCorrect: true,
-      reward: taskReward,
-      explanation: quiz.quizData.explanation,
-      message: `Correct! Rs. ${taskReward.toFixed(2)} has been credited instantly to your wallet!`
-    };
+  // --- ADJUST USER BALANCE (ADMIN) ---
+  public async adjustUserBalance(userId: string, amount: number): Promise<void> {
+    const settings = this.getSettings();
+    try {
+      await fetch('/api/users/adjust-balance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, amount, adminPassword: settings.adminSecretPassword })
+      });
+      await this.syncFromServer();
+    } catch {}
   }
 
   // --- TRANSACTIONS ---
   public getTransactions(userId?: string): Transaction[] {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-      const list: Transaction[] = data ? JSON.parse(data) : SEED_TRANSACTIONS;
+      const list: Transaction[] = data ? JSON.parse(data) : [];
       if (userId) {
         return list.filter(t => t.userId === userId);
       }
       return list;
     } catch {}
-    return SEED_TRANSACTIONS;
+    return [];
   }
 
   public saveTransactions(txs: Transaction[]): void {
@@ -833,15 +713,12 @@ class StorageService {
   } {
     const users = this.getUsers();
 
-    // Level 1: direct
     const level1 = users.filter(u => u.referredBy === userReferralCode);
     const level1Codes = new Set(level1.map(u => u.referralCode));
 
-    // Level 2: referred by level 1
     const level2 = users.filter(u => u.referredBy && level1Codes.has(u.referredBy));
     const level2Codes = new Set(level2.map(u => u.referralCode));
 
-    // Level 3: referred by level 2
     const level3 = users.filter(u => u.referredBy && level2Codes.has(u.referredBy));
 
     const allTeam = [...level1, ...level2, ...level3];

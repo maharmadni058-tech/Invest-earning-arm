@@ -48,49 +48,62 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMsg(null);
+    setIsSubmitting(true);
 
-    if (mode === 'login') {
-      const res = storage.login(phoneOrEmail, password);
-      if (!res.success) {
-        setError(res.message);
-        return;
-      }
-      setSuccessMsg('Welcome back!');
-      setTimeout(() => {
-        if (res.user) onAuthSuccess(res.user);
-        onClose();
-      }, 500);
-    } else {
-      if (!fullName.trim()) {
-        setError('Please enter your full name.');
-        return;
-      }
-      if (!phoneOrEmail.trim() || phoneOrEmail.trim().length < 10) {
-        setError('Please enter a valid mobile number (e.g. 03001234567).');
-        return;
-      }
+    try {
+      if (mode === 'login') {
+        const res = await storage.login(phoneOrEmail, password);
+        if (!res.success) {
+          setError(res.message);
+          setIsSubmitting(false);
+          return;
+        }
+        setSuccessMsg('Welcome back!');
+        setTimeout(() => {
+          if (res.user) onAuthSuccess(res.user);
+          onClose();
+        }, 400);
+      } else {
+        if (!fullName.trim()) {
+          setError('Please enter your full name.');
+          setIsSubmitting(false);
+          return;
+        }
+        if (!phoneOrEmail.trim() || phoneOrEmail.trim().length < 10) {
+          setError('Please enter a valid mobile number (e.g. 03001234567).');
+          setIsSubmitting(false);
+          return;
+        }
 
-      const res = storage.register({
-        fullName,
-        phone: phoneOrEmail,
-        password: password || 'password123',
-        referralCode: referralCode.trim() || undefined
-      });
+        const res = await storage.register({
+          fullName,
+          phone: phoneOrEmail,
+          password: password || 'password123',
+          referralCode: referralCode.trim() || undefined
+        });
 
-      if (!res.success) {
-        setError(res.message);
-        return;
+        if (!res.success) {
+          setError(res.message);
+          setIsSubmitting(false);
+          return;
+        }
+
+        setSuccessMsg(res.message);
+        setTimeout(() => {
+          if (res.user) onAuthSuccess(res.user);
+          onClose();
+        }, 500);
       }
-
-      setSuccessMsg(res.message);
-      setTimeout(() => {
-        if (res.user) onAuthSuccess(res.user);
-        onClose();
-      }, 700);
+    } catch (err: any) {
+      setError(err?.message || 'Network error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -242,9 +255,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20 mt-2"
+            disabled={isSubmitting}
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 disabled:opacity-50 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20 mt-2"
           >
-            {mode === 'login' ? 'Sign In to Portal' : 'Register & Claim Rs. 10 Bonus'}
+            {isSubmitting
+              ? 'Connecting...'
+              : mode === 'login'
+              ? 'Sign In to Portal'
+              : 'Register & Claim Rs. 10 Bonus'}
           </button>
         </form>
       </div>

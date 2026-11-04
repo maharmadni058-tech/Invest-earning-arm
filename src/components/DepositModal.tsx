@@ -75,7 +75,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     setTimeout(() => setCopiedTitle(false), 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -96,7 +96,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
     const plan = plans.find(p => p.id === selectedPlanId);
 
-    storage.createDeposit({
+    await storage.createDeposit({
       userId: user.id,
       userName: user.fullName,
       userPhone: user.phone,
