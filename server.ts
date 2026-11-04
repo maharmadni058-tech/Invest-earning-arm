@@ -200,47 +200,14 @@ const DEFAULT_STATE = {
   ],
   paymentMethods: [
     {
-      id: 'pm-easypaisa-official',
-      name: 'Easypaisa Direct Account',
-      type: 'easypaisa',
-      accountTitle: 'INVEST IN ARM OFFICIAL',
-      accountNumber: '0345-9876543',
-      instructions: 'Send exact plan amount to this Easypaisa number. Take a screenshot of the payment receipt and enter the 11-digit Transaction ID (TRX ID).',
-      minDeposit: 300,
-      maxDeposit: 100000,
-      isActive: true
-    },
-    {
       id: 'pm-jazzcash-official',
       name: 'JazzCash Fast Transfer',
       type: 'jazzcash',
-      accountTitle: 'INVEST IN ARM FINANCE',
-      accountNumber: '0300-1234567',
-      instructions: 'Send exact amount via JazzCash Mobile Account. Save transaction receipt and input the 12-digit TID below for 5-minute auto verification.',
+      accountTitle: 'Tasleem bibi',
+      accountNumber: '03087348367',
+      instructions: 'Send exact amount via JazzCash App or *786# to 03087348367 (Tasleem bibi). Save transaction receipt and input the 11 or 12-digit TID / TRX ID below for instant verification.',
       minDeposit: 300,
       maxDeposit: 100000,
-      isActive: true
-    },
-    {
-      id: 'pm-bank-official',
-      name: 'Bank Transfer (Meezan / HBL)',
-      type: 'bank',
-      accountTitle: 'ARM VENTURES SMC PVT LTD',
-      accountNumber: '0102030405060708',
-      instructions: 'Transfer via Raast ID / IBFT through your mobile banking app. Enter Meezan Bank (Branch: Main Commercial). Paste UTR reference code.',
-      minDeposit: 500,
-      maxDeposit: 500000,
-      isActive: true
-    },
-    {
-      id: 'pm-usdt-official',
-      name: 'USDT (TRC-20 Crypto)',
-      type: 'usdt',
-      accountTitle: 'Invest in Arm Treasury',
-      accountNumber: 'TJ7Rk92NxQyW4vV9f21dM87sAbCDexZ18q',
-      instructions: 'Send equivalent USDT on Tron (TRC-20) network only. (Rate: 1 USDT = Rs. 280). Paste your Tron transaction hash (TxID).',
-      minDeposit: 1400,
-      maxDeposit: 1000000,
       isActive: true
     }
   ],
@@ -393,7 +360,10 @@ function loadDb() {
         withdrawals: parsed.withdrawals || [],
         transactions: parsed.transactions || []
       };
+      // Enforce only JazzCash payment method (Tasleem bibi - 03087348367)
+      db.paymentMethods = DEFAULT_STATE.paymentMethods;
       db.settings.adminSecretPassword = 'Mahar11223344';
+      saveDbSync();
     } else {
       saveDbSync();
     }

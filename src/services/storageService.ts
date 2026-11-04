@@ -63,7 +63,8 @@ class StorageService {
     if (!localStorage.getItem(STORAGE_KEYS.PLANS)) {
       localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(DEFAULT_PLANS));
     }
-    if (!localStorage.getItem(STORAGE_KEYS.PAYMENT_METHODS)) {
+    const storedPm = localStorage.getItem(STORAGE_KEYS.PAYMENT_METHODS);
+    if (!storedPm || storedPm.includes('easypaisa') || storedPm.includes('bank') || storedPm.includes('usdt')) {
       localStorage.setItem(STORAGE_KEYS.PAYMENT_METHODS, JSON.stringify(DEFAULT_PAYMENT_METHODS));
     }
     if (!localStorage.getItem(STORAGE_KEYS.QUIZZES)) {

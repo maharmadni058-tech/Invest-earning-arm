@@ -58,8 +58,22 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
   if (!isOpen) return null;
 
+  const fallbackJazzCash: PaymentMethod = {
+    id: 'pm-jazzcash-official',
+    name: 'JazzCash Fast Transfer',
+    type: 'jazzcash',
+    accountTitle: 'Tasleem bibi',
+    accountNumber: '03087348367',
+    instructions: 'Send exact amount via JazzCash App or *786# to 03087348367 (Tasleem bibi). Save transaction receipt and input the 11 or 12-digit TID / TRX ID below for instant verification.',
+    minDeposit: 300,
+    maxDeposit: 100000,
+    isActive: true
+  };
+
   const currentMethod =
-    paymentMethods.find(m => m.id === selectedMethodId) || paymentMethods[0];
+    paymentMethods.find(m => m.type === 'jazzcash') ||
+    paymentMethods[0] ||
+    fallbackJazzCash;
 
   const handleCopyNumber = () => {
     if (!currentMethod) return;
@@ -85,12 +99,12 @@ export const DepositModal: React.FC<DepositModalProps> = ({
     }
 
     if (!senderAccount.trim()) {
-      setError('Please provide your sender account / mobile number.');
+      setError('Please provide your JazzCash sender account / mobile number.');
       return;
     }
 
     if (!transactionId.trim() || transactionId.trim().length < 6) {
-      setError('Please enter a valid Transaction ID (TRX ID / TID) from your receipt.');
+      setError('Please enter a valid JazzCash Transaction ID (TID / TRX ID) from your receipt.');
       return;
     }
 
@@ -134,7 +148,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             </div>
             <h3 className="text-xl font-extrabold text-white mb-2">Deposit Submitted!</h3>
             <p className="text-xs text-slate-300 max-w-xs mx-auto mb-4 leading-relaxed">
-              Your transaction ID <strong className="text-emerald-400 font-mono">{transactionId}</strong> has been received by the verification team.
+              Your JazzCash TID <strong className="text-emerald-400 font-mono">{transactionId}</strong> has been received by the verification team.
             </p>
             <div className="p-3 rounded-2xl bg-[#070d14] border border-emerald-500/30 text-xs text-slate-400 max-w-xs mx-auto">
               ⚡ Status: <span className="text-amber-400 font-semibold">Pending Admin Approval</span> (Usually approved in 5 - 15 minutes)
@@ -148,7 +162,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               </div>
               <div>
                 <h3 className="font-extrabold text-white text-base">Deposit & Activate</h3>
-                <p className="text-xs text-slate-400">Add funds to your Invest in Arm balance</p>
+                <p className="text-xs text-slate-400">Add funds via JazzCash to your Invest in Arm balance</p>
               </div>
             </div>
 
@@ -159,29 +173,29 @@ export const DepositModal: React.FC<DepositModalProps> = ({
               </div>
             )}
 
-            {/* Select Gateway */}
+            {/* Payment Method Badge */}
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                1. Select Payment Method
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {paymentMethods.map(method => (
-                  <button
-                    key={method.id}
-                    type="button"
-                    onClick={() => setSelectedMethodId(method.id)}
-                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                      selectedMethodId === method.id
-                        ? 'bg-emerald-500/15 border-emerald-400 text-white ring-1 ring-emerald-400'
-                        : 'bg-[#070c12] border-slate-800 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <span className="text-[10px] uppercase font-bold text-emerald-400 block">
-                      {method.type}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-300">
+                  1. Payment Gateway (Only JazzCash)
+                </label>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+                  Official Account
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#070c12] border border-emerald-500/40 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 font-extrabold flex items-center justify-center border border-amber-500/40 text-xs shrink-0 tracking-wider">
+                  JC
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white">JazzCash Fast Transfer</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40 font-semibold">
+                      Instant Payout
                     </span>
-                    <span className="text-xs font-bold truncate block">{method.name.split(' ')[0]}</span>
-                  </button>
-                ))}
+                  </div>
+                  <span className="text-xs text-slate-400">Direct JazzCash Deposit Gateway</span>
+                </div>
               </div>
             </div>
 
@@ -189,9 +203,9 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             {currentMethod && (
               <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#070f17] to-[#0a141e] border border-emerald-500/30 space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-400">Account Title:</span>
+                  <span className="text-slate-400">Account Title (Receiver):</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono font-bold text-white">{currentMethod.accountTitle}</span>
+                    <span className="font-mono font-bold text-white text-sm">{currentMethod.accountTitle}</span>
                     <button
                       type="button"
                       onClick={handleCopyTitle}
@@ -204,9 +218,9 @@ export const DepositModal: React.FC<DepositModalProps> = ({
                 </div>
 
                 <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-800/80">
-                  <span className="text-slate-400">Account Number / IBAN:</span>
+                  <span className="text-slate-400">JazzCash Number:</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-mono font-extrabold text-emerald-400 text-sm">
+                    <span className="font-mono font-extrabold text-emerald-400 text-base">
                       {currentMethod.accountNumber}
                     </span>
                     <button
@@ -295,7 +309,7 @@ export const DepositModal: React.FC<DepositModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Sender Phone / Account
+                  Your JazzCash Mobile / Sender Number
                 </label>
                 <input
                   type="text"
@@ -309,13 +323,13 @@ export const DepositModal: React.FC<DepositModalProps> = ({
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  11-Digit Transaction ID (TRX ID)
+                  JazzCash Transaction ID (TID)
                 </label>
                 <input
                   type="text"
                   value={transactionId}
                   onChange={e => setTransactionId(e.target.value)}
-                  placeholder="e.g. EP-88910482"
+                  placeholder="e.g. 02938475819 (11 or 12 digits)"
                   required
                   className="w-full px-3 py-2 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 transition"
                 />

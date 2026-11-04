@@ -122,7 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {settings.announcementText}
                     </p>
                     <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/20 text-[11px] text-emerald-300">
-                      ⚡ 24/7 Automated Withdrawal Dispatches via Easypaisa & JazzCash active!
+                      ⚡ 24/7 Fast Deposit & Withdrawal Dispatches via JazzCash active!
                     </div>
                   </div>
                 )}

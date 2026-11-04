@@ -27,11 +27,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   settings,
   onWithdrawSuccess
 }) => {
-  const [method, setMethod] = useState<PaymentType>('easypaisa');
+  const [method] = useState<PaymentType>('jazzcash');
   const [amount, setAmount] = useState<number>(300);
   const [accountTitle, setAccountTitle] = useState<string>(user.fullName);
   const [accountNumber, setAccountNumber] = useState<string>(user.phone);
-  const [bankName, setBankName] = useState<string>('Meezan Bank');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -52,7 +51,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
     }
 
     if (!accountTitle.trim() || !accountNumber.trim()) {
-      setError('Please provide your complete account title and account number.');
+      setError('Please provide your JazzCash account title and mobile number.');
       return;
     }
 
@@ -61,10 +60,9 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       userName: user.fullName,
       userPhone: user.phone,
       amount: Number(amount),
-      paymentMethodType: method,
+      paymentMethodType: 'jazzcash',
       accountTitle: accountTitle.trim(),
-      accountNumber: accountNumber.trim(),
-      bankName: method === 'bank' ? bankName.trim() : undefined
+      accountNumber: accountNumber.trim()
     });
 
     if (!res.success) {
@@ -96,10 +94,10 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             </div>
             <h3 className="text-xl font-extrabold text-white mb-2">Withdrawal Initiated!</h3>
             <p className="text-xs text-slate-300 max-w-xs mx-auto mb-4 leading-relaxed">
-              Rs. {amount.toLocaleString()} requested to {method.toUpperCase()} ({accountNumber}). Funds will arrive in your account shortly.
+              Rs. {amount.toLocaleString()} requested to JazzCash ({accountNumber} - {accountTitle}). Funds will arrive in your account shortly.
             </p>
             <div className="p-3 rounded-2xl bg-[#070d14] border border-emerald-500/30 text-xs text-slate-400 max-w-xs mx-auto">
-              ⚡ Status: <span className="text-amber-400 font-semibold">Processing via Gateway</span>
+              ⚡ Status: <span className="text-amber-400 font-semibold">Processing via JazzCash Gateway</span>
             </div>
           </div>
         ) : (
@@ -110,7 +108,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
               <div>
                 <h3 className="font-extrabold text-white text-base">Withdraw Cash</h3>
-                <p className="text-xs text-slate-400">Direct 24/7 payout to your bank or mobile wallet</p>
+                <p className="text-xs text-slate-400">Direct 24/7 payout to your JazzCash mobile account</p>
               </div>
             </div>
 
@@ -134,29 +132,27 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
             {/* Payout Channel */}
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1.5">
-                Select Cashout Gateway
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { id: 'easypaisa' as PaymentType, label: 'Easypaisa' },
-                  { id: 'jazzcash' as PaymentType, label: 'JazzCash' },
-                  { id: 'bank' as PaymentType, label: 'Bank IBFT' },
-                  { id: 'usdt' as PaymentType, label: 'USDT TRC20' }
-                ].map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setMethod(item.id)}
-                    className={`py-2 rounded-xl text-xs font-bold text-center border transition cursor-pointer ${
-                      method === item.id
-                        ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 ring-1 ring-emerald-400'
-                        : 'bg-[#070c12] border-slate-800 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-300">
+                  Cashout Gateway (Only JazzCash)
+                </label>
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">
+                  Instant Payout
+                </span>
+              </div>
+              <div className="p-3 rounded-2xl bg-[#070c12] border border-emerald-500/40 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 font-extrabold flex items-center justify-center border border-amber-500/40 text-xs shrink-0 tracking-wider">
+                  JC
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-white">JazzCash Fast Transfer</span>
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40 font-semibold">
+                      Active
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-400">Dispatched directly to your JazzCash wallet</span>
+                </div>
               </div>
             </div>
 
@@ -206,31 +202,15 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
             {/* Account Details */}
             <div className="space-y-3">
-              {method === 'bank' && (
-                <div>
-                  <label className="text-xs font-bold text-slate-300 block mb-1">
-                    Bank Name
-                  </label>
-                  <input
-                    type="text"
-                    value={bankName}
-                    onChange={e => setBankName(e.target.value)}
-                    placeholder="e.g. Meezan Bank, HBL, Allied Bank"
-                    required
-                    className="w-full px-3 py-2 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
-                  />
-                </div>
-              )}
-
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Account Holder Title / Full Name
+                  JazzCash Account Holder Name (Title)
                 </label>
                 <input
                   type="text"
                   value={accountTitle}
                   onChange={e => setAccountTitle(e.target.value)}
-                  placeholder="Enter exact name on your account"
+                  placeholder="e.g. Tasleem bibi / Your Account Name"
                   required
                   className="w-full px-3 py-2 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
                 />
@@ -238,13 +218,13 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
               <div>
                 <label className="text-xs font-bold text-slate-300 block mb-1">
-                  Account Number / Mobile Wallet Number
+                  JazzCash Mobile Account Number
                 </label>
                 <input
                   type="text"
                   value={accountNumber}
                   onChange={e => setAccountNumber(e.target.value)}
-                  placeholder="e.g. 03001234567 or IBAN"
+                  placeholder="e.g. 03001234567"
                   required
                   className="w-full px-3 py-2 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 transition"
                 />

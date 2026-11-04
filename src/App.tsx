@@ -247,7 +247,7 @@ export default function App() {
                   Micro-Investments with Guaranteed <span className="text-emerald-400">Daily Cash Payouts</span>
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto mt-3 mb-6 leading-relaxed">
-                  Join Pakistan's premier high-yield platform. Activate packages starting at Rs. 500, solve daily math quizzes, and withdraw 24/7 directly to Easypaisa and JazzCash.
+                  Join Pakistan's premier high-yield platform. Activate packages starting at Rs. 500, solve daily math quizzes, and withdraw 24/7 directly to JazzCash.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">

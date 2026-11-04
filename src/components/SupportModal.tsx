@@ -31,7 +31,7 @@ export const SupportModal: React.FC<SupportModalProps> = ({ isOpen, onClose, set
     },
     {
       q: 'What is the minimum withdrawal amount?',
-      a: 'The minimum cashout threshold is Rs. 300. Withdrawals are processed 24/7 with zero fees directly to your Easypaisa, JazzCash, or Bank account.'
+      a: 'The minimum cashout threshold is Rs. 300. Withdrawals are processed 24/7 with zero fees directly to your verified JazzCash account.'
     },
     {
       q: 'How does the 3-Tier referral program work?',

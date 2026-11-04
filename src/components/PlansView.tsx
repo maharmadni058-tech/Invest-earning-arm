@@ -345,7 +345,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
                       onClick={() => onSelectPlanForDeposit(plan)}
                       className="w-full py-2 rounded-xl font-semibold text-xs text-slate-300 hover:text-white bg-slate-900/80 hover:bg-slate-800 border border-slate-700 transition cursor-pointer"
                     >
-                      Pay via Easypaisa / JazzCash / Bank
+                      Pay via JazzCash
                     </button>
                   </div>
                 ) : (

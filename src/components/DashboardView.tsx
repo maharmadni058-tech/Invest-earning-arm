@@ -322,7 +322,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <h5 className="font-bold text-slate-200 text-xs mb-1">Pick an Investment Plan</h5>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Deposit via Easypaisa, JazzCash, Bank or USDT from Rs. 500 up to Rs. 50,000.
+              Deposit via JazzCash (03087348367 - Tasleem bibi) from Rs. 500 up to Rs. 50,000.
             </p>
           </div>
 
@@ -342,7 +342,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <h5 className="font-bold text-slate-200 text-xs mb-1">Instant 24/7 Cashouts</h5>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Withdraw straight to your Easypaisa, JazzCash or Bank account from just Rs. 300.
+              Withdraw straight to your JazzCash account from just Rs. 300 with zero deduction fee.
             </p>
           </div>
         </div>
