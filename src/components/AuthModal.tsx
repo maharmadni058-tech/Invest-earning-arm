@@ -69,21 +69,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           onClose();
         }, 400);
       } else {
-        if (!fullName.trim()) {
-          setError('Please enter your full name.');
-          setIsSubmitting(false);
-          return;
-        }
-        if (!phoneOrEmail.trim() || phoneOrEmail.trim().length < 10) {
-          setError('Please enter a valid mobile number (e.g. 03001234567).');
+        const finalName = fullName.trim() || 'Investor';
+        if (!phoneOrEmail.trim() || phoneOrEmail.trim().length < 3) {
+          setError('Please enter a valid mobile number or email.');
           setIsSubmitting(false);
           return;
         }
 
         const res = await storage.register({
-          fullName,
+          fullName: finalName,
           phone: phoneOrEmail,
-          password: password || 'password123',
+          email: phoneOrEmail.includes('@') ? phoneOrEmail.trim().toLowerCase() : undefined,
+          password: password || 'Mahar11223344',
           referralCode: referralCode.trim() || undefined
         });
 
@@ -171,9 +168,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         )}
 
         {error && (
-          <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2 mb-3">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-            <span>{error}</span>
+          <div className="p-3.5 rounded-2xl bg-rose-950/60 border border-rose-500/50 text-rose-200 text-xs mb-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
+              <span className="leading-tight">{error}</span>
+            </div>
+            {mode === 'login' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('register');
+                  setError(null);
+                  if (!fullName) setFullName('Investor');
+                }}
+                className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 text-slate-950 font-bold text-xs hover:brightness-110 flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-500/20"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Create Free Account with "{phoneOrEmail || 'this email'}" (Get Rs. 10 Bonus)</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -194,8 +207,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="text"
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
-                placeholder="e.g. Muhammad Madni"
-                required
+                placeholder="e.g. Mahar Madni"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white focus:outline-none focus:border-emerald-500 transition"
               />
             </div>
@@ -209,7 +221,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="text"
               value={phoneOrEmail}
               onChange={e => setPhoneOrEmail(e.target.value)}
-              placeholder="e.g. 03001234567"
+              placeholder="e.g. 03087348367 or 58@gmail.com"
               required
               className="w-full px-3 py-2.5 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 transition"
             />
@@ -246,7 +258,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 type="text"
                 value={referralCode}
                 onChange={e => setReferralCode(e.target.value.toUpperCase())}
-                placeholder="e.g. ARM8842"
+                placeholder="e.g. ARM7788"
                 className="w-full px-3 py-2.5 rounded-xl bg-[#070c12] border border-slate-800 text-xs text-white font-mono uppercase focus:outline-none focus:border-emerald-500 transition"
               />
             </div>
@@ -263,6 +275,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               ? 'Sign In to Portal'
               : 'Register & Claim Rs. 10 Bonus'}
           </button>
+
+          <div className="text-center pt-2">
+            {mode === 'login' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('register');
+                  setError(null);
+                }}
+                className="text-xs text-slate-400 hover:text-emerald-400 transition cursor-pointer"
+              >
+                New here? <span className="text-emerald-400 font-bold underline underline-offset-2">Create Account & Claim Rs. 10</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError(null);
+                }}
+                className="text-xs text-slate-400 hover:text-emerald-400 transition cursor-pointer"
+              >
+                Already have an account? <span className="text-emerald-400 font-bold underline underline-offset-2">Sign In here</span>
+              </button>
+            )}
+          </div>
         </form>
       </div>
     </div>

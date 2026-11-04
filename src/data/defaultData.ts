@@ -1,4 +1,4 @@
-import { InvestmentPlan, PaymentMethod, TaskQuiz, AppSettings } from '../types';
+import { InvestmentPlan, PaymentMethod, TaskQuiz, AppSettings, User } from '../types';
 
 export const DEFAULT_SETTINGS: AppSettings = {
   siteName: 'Invest in Arm',
@@ -448,3 +448,29 @@ export const MOCK_ACTIVITY_FEED = [
   { id: 'act-6', text: 'Member 0308***332 completed 5/5 math tasks (Rs. 146 credited)', time: '14m ago', type: 'task' },
   { id: 'act-7', text: 'Member 0340***119 deposited Rs. 3,000 via Bank Transfer (Meezan)', time: '18m ago', type: 'deposit' },
 ];
+
+export const DEFAULT_USERS: User[] = [
+  {
+    id: 'user-mahar-owner',
+    fullName: 'Mahar Madni',
+    phone: '03087348367',
+    email: '58@gmail.com',
+    password: 'Mahar11223344',
+    referralCode: 'ARM7788',
+    balance: 500,
+    totalDeposited: 1500,
+    totalWithdrawn: 0,
+    totalProfitEarned: 292,
+    referralEarnings: 150,
+    activePlanId: 'plan-silver-1500',
+    activePlanName: 'Silver Standard Plan',
+    planActivatedAt: '2026-11-01T00:00:00.000Z',
+    planExpiresAt: '2026-12-01T00:00:00.000Z',
+    dailyTasksCompletedToday: 0,
+    lastTaskDate: new Date().toISOString().split('T')[0],
+    role: 'user',
+    createdAt: '2026-11-01T00:00:00.000Z',
+    status: 'active'
+  }
+];
+

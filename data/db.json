@@ -354,8 +354,42 @@
       }
     }
   ],
-  "users": [],
+  "users": [
+    {
+      "id": "user-mahar-owner",
+      "fullName": "Mahar Madni",
+      "phone": "03087348367",
+      "email": "58@gmail.com",
+      "password": "Mahar11223344",
+      "referralCode": "ARM7788",
+      "balance": 500,
+      "totalDeposited": 1500,
+      "totalWithdrawn": 0,
+      "totalProfitEarned": 292,
+      "referralEarnings": 150,
+      "activePlanId": "plan-silver-1500",
+      "activePlanName": "Silver Standard Plan",
+      "planActivatedAt": "2026-11-01T00:00:00.000Z",
+      "planExpiresAt": "2026-12-01T00:00:00.000Z",
+      "dailyTasksCompletedToday": 0,
+      "lastTaskDate": "2026-11-04",
+      "role": "user",
+      "createdAt": "2026-11-01T00:00:00.000Z",
+      "status": "active"
+    }
+  ],
   "deposits": [],
   "withdrawals": [],
-  "transactions": []
+  "transactions": [
+    {
+      "id": "tx-seed-1",
+      "userId": "user-mahar-owner",
+      "type": "deposit",
+      "amount": 1500,
+      "title": "JazzCash Deposit Verified",
+      "description": "Approved deposit credited to wallet via 03087348367 (Tasleem bibi)",
+      "status": "completed",
+      "createdAt": "2026-11-01T00:00:00.000Z"
+    }
+  ]
 }
