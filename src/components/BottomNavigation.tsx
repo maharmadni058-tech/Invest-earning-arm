@@ -19,9 +19,9 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   onChangeTab,
   user
 }) => {
-  const remainingTasks = user?.activePlanId
-    ? Math.max(0, 5 - (user.dailyTasksCompletedToday || 0)) // or dynamic based on plan
-    : 0;
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isClaimedToday = Boolean(user && user.lastTaskDate === todayStr && user.dailyTasksCompletedToday >= 1);
+  const hasClaimReady = Boolean(user?.activePlanId && !isClaimedToday);
 
   const navItems = [
     {
@@ -40,7 +40,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
       id: 'tasks' as TabType,
       label: 'Tasks',
       icon: BrainCircuit,
-      badge: user?.activePlanId && remainingTasks > 0 ? `${remainingTasks}` : null
+      badge: hasClaimReady ? '1' : null
     },
     {
       id: 'referrals' as TabType,

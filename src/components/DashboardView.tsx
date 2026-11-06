@@ -17,7 +17,9 @@ import {
   Gift,
   HelpCircle,
   ExternalLink,
-  QrCode
+  QrCode,
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
 import { User, AppSettings, InvestmentPlan } from '../types';
 
@@ -64,9 +66,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isClaimedToday = Boolean(user.lastTaskDate === todayStr && user.dailyTasksCompletedToday >= 1);
   const maxTasks = activePlan ? activePlan.dailyTaskCount : 0;
-  const tasksRemaining = Math.max(0, maxTasks - (user.dailyTasksCompletedToday || 0));
-  const progressPercent = maxTasks > 0 ? ((user.dailyTasksCompletedToday || 0) / maxTasks) * 100 : 0;
+  const tasksRemaining = isClaimedToday ? 0 : 1;
+  const progressPercent = isClaimedToday ? 100 : 0;
 
   return (
     <div className="space-y-5 pb-6">
@@ -176,25 +180,38 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             <button
               onClick={onGoToTasks}
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-md"
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-md ${
+                isClaimedToday
+                  ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/30'
+                  : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
+              }`}
             >
-              <BrainCircuit className="w-4 h-4" />
-              <span>Solve Tasks ({tasksRemaining} Left)</span>
+              {isClaimedToday ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>Today's Profit Claimed (Rs. {activePlan.dailyMinEarn})</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4 fill-slate-950 animate-bounce" />
+                  <span>Claim Daily Profit: Rs. {activePlan.dailyMinEarn} (1-Click)</span>
+                </>
+              )}
             </button>
           </div>
 
-          {/* Progress bar */}
+          {/* Status bar */}
           <div className="mt-3 pt-3 border-t border-slate-800">
             <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="text-slate-400">Today's Task Progress</span>
-              <span className="font-mono font-bold text-white">
-                {user.dailyTasksCompletedToday || 0} / {activePlan.dailyTaskCount} Completed
+              <span className="text-slate-400">1-Click Daily Profit Status</span>
+              <span className={`font-mono font-bold ${isClaimedToday ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isClaimedToday ? '1 / 1 Claimed Today (Next: Tomorrow)' : '0 / 1 Available to Claim in 1-Click'}
               </span>
             </div>
-            <div className="w-full h-2.5 rounded-full bg-slate-800 overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
+                style={{ width: isClaimedToday ? '100%' : '0%' }}
               />
             </div>
           </div>

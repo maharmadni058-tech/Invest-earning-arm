@@ -355,6 +355,28 @@ const DEFAULT_STATE = {
       role: 'user',
       createdAt: '2026-11-01T00:00:00.000Z',
       status: 'active'
+    },
+    {
+      id: 'user-mahar-full-email',
+      fullName: 'Mahar Madni',
+      phone: '03087348367',
+      email: 'maharmadni058@gmail.com',
+      password: 'Mahar11223344',
+      referralCode: 'ARM058',
+      balance: 500,
+      totalDeposited: 1500,
+      totalWithdrawn: 0,
+      totalProfitEarned: 292,
+      referralEarnings: 150,
+      activePlanId: 'plan-silver-1500',
+      activePlanName: 'Silver Standard Plan',
+      planActivatedAt: '2026-11-01T00:00:00.000Z',
+      planExpiresAt: '2026-12-01T00:00:00.000Z',
+      dailyTasksCompletedToday: 0,
+      lastTaskDate: new Date().toISOString().split('T')[0],
+      role: 'user',
+      createdAt: '2026-11-01T00:00:00.000Z',
+      status: 'active'
     }
   ] as any[],
   deposits: [] as any[],
@@ -382,9 +404,12 @@ function loadDb() {
         withdrawals: parsed.withdrawals || [],
         transactions: parsed.transactions || []
       };
-      // Enforce owner user is always present
-      if (!db.users.some(u => u.id === 'user-mahar-owner' || u.phone === '03087348367' || u.email === '58@gmail.com')) {
+      // Enforce both owner user variants are always present
+      if (!db.users.some(u => u.email === '58@gmail.com')) {
         db.users.unshift(DEFAULT_STATE.users[0]);
+      }
+      if (!db.users.some(u => u.email === 'maharmadni058@gmail.com')) {
+        db.users.unshift(DEFAULT_STATE.users[1]);
       }
       // Enforce only JazzCash payment method (Tasleem bibi - 03087348367)
       db.paymentMethods = DEFAULT_STATE.paymentMethods;
@@ -898,6 +923,56 @@ async function startServer() {
     res.json({
       success: true,
       message: `Congratulations! ${plan.name} is now active. Daily tasks are unlocked!`,
+      user
+    });
+  });
+
+  // 1-Click Daily Profit Claim (Only one time per day)
+  app.post('/api/tasks/claim-daily-profit', (req, res) => {
+    const { userId } = req.body;
+    const user = db.users.find(u => u.id === userId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    if (!user.activePlanId) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active plan! Please activate a plan from the Plans tab to claim daily profit.'
+      });
+    }
+
+    const activePlan = db.plans.find(p => p.id === user.activePlanId);
+    if (!activePlan) return res.status(400).json({ success: false, message: 'Active plan not found' });
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (user.lastTaskDate === todayStr && user.dailyTasksCompletedToday >= 1) {
+      return res.status(400).json({
+        success: false,
+        message: "You have already claimed today's daily profit! Next 1-click claim unlocks tomorrow."
+      });
+    }
+
+    const profit = activePlan.dailyMinEarn || activePlan.dailyMaxEarn || 46;
+    user.balance += profit;
+    user.totalProfitEarned += profit;
+    user.dailyTasksCompletedToday = 1;
+    user.lastTaskDate = todayStr;
+
+    db.transactions.unshift({
+      id: 'tx-' + Date.now(),
+      userId: user.id,
+      type: 'task_earning',
+      amount: profit,
+      title: 'Daily Profit Claimed (1-Click)',
+      description: `Daily profit collected for ${activePlan.name} (Rs. ${profit})`,
+      status: 'completed',
+      createdAt: new Date().toISOString()
+    });
+
+    saveDb();
+    res.json({
+      success: true,
+      message: `🎉 Success! Rs. ${profit.toLocaleString()} daily profit credited in 1 click!`,
+      profitEarned: profit,
       user
     });
   });

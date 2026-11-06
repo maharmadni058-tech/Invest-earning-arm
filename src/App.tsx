@@ -151,10 +151,10 @@ export default function App() {
     { id: 'plans' as TabType, label: 'Investment Packages', icon: TrendingUp },
     {
       id: 'tasks' as TabType,
-      label: 'Daily Tasks',
+      label: '1-Click Profit',
       icon: BrainCircuit,
-      badge: currentUser?.activePlanId
-        ? `${Math.max(0, 5 - (currentUser.dailyTasksCompletedToday || 0))} tasks`
+      badge: currentUser?.activePlanId && !(currentUser.lastTaskDate === new Date().toISOString().split('T')[0] && (currentUser.dailyTasksCompletedToday || 0) >= 1)
+        ? '⚡ Ready'
         : null
     },
     { id: 'referrals' as TabType, label: 'Team Matrix', icon: Users },

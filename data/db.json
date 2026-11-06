@@ -356,12 +356,12 @@
   ],
   "users": [
     {
-      "id": "user-mahar-owner",
+      "id": "user-mahar-full-email",
       "fullName": "Mahar Madni",
       "phone": "03087348367",
-      "email": "58@gmail.com",
+      "email": "maharmadni058@gmail.com",
       "password": "Mahar11223344",
-      "referralCode": "ARM7788",
+      "referralCode": "ARM058",
       "balance": 500,
       "totalDeposited": 1500,
       "totalWithdrawn": 0,
@@ -374,7 +374,24 @@
       "dailyTasksCompletedToday": 0,
       "lastTaskDate": "2026-11-04",
       "role": "user",
-      "createdAt": "2026-11-01T00:00:00.000Z",
+      "createdAt": "2026-11-06T08:08:05.889Z",
+      "status": "active"
+    },
+    {
+      "id": "user-1793951283233-173",
+      "fullName": "m",
+      "phone": "000000000000",
+      "password": "mnb123",
+      "referralCode": "ARM9004",
+      "balance": 510,
+      "totalDeposited": 0,
+      "totalWithdrawn": 0,
+      "totalProfitEarned": 0,
+      "referralEarnings": 0,
+      "dailyTasksCompletedToday": 0,
+      "lastTaskDate": "2026-11-06",
+      "role": "user",
+      "createdAt": "2026-11-06T07:48:03.233Z",
       "status": "active"
     }
   ],

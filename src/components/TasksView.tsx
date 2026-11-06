@@ -1,18 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BrainCircuit,
   Sparkles,
   CheckCircle2,
-  XCircle,
   Clock,
   ArrowRight,
-  Flame,
   Award,
   Zap,
   Lock,
-  ChevronRight,
-  RefreshCw,
-  Trophy
+  Trophy,
+  Wallet,
+  Check,
+  TrendingUp,
+  AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { User, TaskQuiz, InvestmentPlan, AppSettings } from '../types';
@@ -37,84 +37,105 @@ export const TasksView: React.FC<TasksViewProps> = ({
   onOpenAuth,
   onTaskCompleted
 }) => {
-  const [activeQuiz, setActiveQuiz] = useState<TaskQuiz | null>(null);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
-  const [quizResult, setQuizResult] = useState<{
-    submitted: boolean;
-    isCorrect: boolean;
-    reward: number;
-    explanation: string;
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimFeedback, setClaimFeedback] = useState<{
+    success: boolean;
     message: string;
+    amount?: number;
   } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState('');
 
+  // Daily countdown timer to midnight 00:00
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight.getTime() - now.getTime();
+      if (diff <= 0) {
+        setTimeLeft('00h 00m 00s (Resetting...)');
+        return;
+      }
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft(
+        `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`
+      );
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const todayStr = new Date().toISOString().split('T')[0];
   const activePlan = plans.find(p => p.id === user?.activePlanId);
-  const totalTasksAllowed = activePlan ? activePlan.dailyTaskCount : 0;
-  const completedToday = user?.dailyTasksCompletedToday || 0;
-  const remainingToday = Math.max(0, totalTasksAllowed - completedToday);
-  const taskReward = activePlan ? Number((activePlan.dailyMinEarn / activePlan.dailyTaskCount).toFixed(2)) : 0;
-  const earnedToday = Number((completedToday * taskReward).toFixed(2));
+  const isClaimedToday = Boolean(user && user.lastTaskDate === todayStr && user.dailyTasksCompletedToday >= 1);
+  const dailyProfitAmount = activePlan ? activePlan.dailyMinEarn || activePlan.dailyMaxEarn || 46 : 0;
 
-  const handleStartQuiz = (quiz: TaskQuiz) => {
-    setActiveQuiz(quiz);
-    setSelectedOption(null);
-    setQuizResult(null);
-  };
+  // 1-Click Profit Claim Handler (Only one time per day)
+  const handleClaimProfitOneClick = async () => {
+    if (!user) {
+      onOpenAuth();
+      return;
+    }
+    if (!activePlan) {
+      onGoToPlans();
+      return;
+    }
+    if (isClaimedToday || isClaiming) return;
 
-  const handleSelectOption = (idx: number) => {
-    if (quizResult?.submitted) return;
-    setSelectedOption(idx);
-  };
-
-  const handleSubmitAnswer = async () => {
-    if (!user || !activeQuiz || selectedOption === null) return;
-    setIsSubmitting(true);
+    setIsClaiming(true);
+    setClaimFeedback(null);
 
     try {
-      const res = await storage.submitTaskQuiz(user.id, activeQuiz.id, selectedOption);
-      setIsSubmitting(false);
-      setQuizResult({
-        submitted: true,
-        isCorrect: res.isCorrect,
-        reward: res.reward,
-        explanation: res.explanation,
-        message: res.message
-      });
+      const res = await storage.claimDailyProfit(user.id);
+      setIsClaiming(false);
 
-      if (res.isCorrect) {
+      if (res.success) {
+        setClaimFeedback({
+          success: true,
+          message: res.message,
+          amount: res.profitEarned
+        });
+
         // Trigger celebratory confetti
         confetti({
-          particleCount: 80,
-          spread: 70,
+          particleCount: 100,
+          spread: 80,
           origin: { y: 0.6 }
         });
-        onTaskCompleted();
-      }
-    } catch {
-      setIsSubmitting(false);
-    }
-  };
 
-  const handleCloseQuiz = () => {
-    setActiveQuiz(null);
-    setSelectedOption(null);
-    setQuizResult(null);
+        onTaskCompleted();
+      } else {
+        setClaimFeedback({
+          success: false,
+          message: res.message
+        });
+      }
+    } catch (err: any) {
+      setIsClaiming(false);
+      setClaimFeedback({
+        success: false,
+        message: err?.message || 'Network error. Please try again.'
+      });
+    }
   };
 
   // If user not signed in
   if (!user) {
     return (
-      <div className="max-w-md mx-auto my-8 p-6 rounded-3xl bg-[#0c1622] border border-emerald-500/30 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4">
-          <BrainCircuit className="w-7 h-7" />
+      <div className="max-w-md mx-auto my-8 p-6 rounded-3xl bg-[#0c1622] border border-emerald-500/30 text-center shadow-2xl">
+        <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-4 border border-emerald-500/30">
+          <Zap className="w-8 h-8 fill-emerald-400" />
         </div>
-        <h3 className="font-extrabold text-xl text-white mb-2">Daily Math Quiz Tasks</h3>
-        <p className="text-xs text-slate-300 mb-5 leading-relaxed">
-          Sign in or create your free account to access daily profit tasks and earn instant cash!
+        <h3 className="font-extrabold text-xl text-white mb-2">1-Click Daily Profit Claim</h3>
+        <p className="text-xs text-slate-300 mb-6 leading-relaxed">
+          Sign in or create your account to unlock instant 1-click daily cash profit claims credited straight to your wallet.
         </p>
         <button
           onClick={onOpenAuth}
-          className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20"
+          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20"
         >
           Sign In / Create Account
         </button>
@@ -131,42 +152,48 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <Lock className="w-8 h-8" />
           </div>
           <span className="text-xs font-bold text-amber-400 uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30">
-            Package Activation Required
+            1-Click Task Upgrade
           </span>
           <h2 className="text-2xl font-extrabold text-white mt-3 mb-2">
-            Unlock Daily Math Quiz Tasks
+            Unlock 1-Click Daily Profit Claim
           </h2>
           <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md mx-auto mb-6">
-            Micro tasks are available exclusively for members holding an active investment tier (Bronze Rs. 500 up to Rs. 50,000). Activate your contract to start collecting instant cash today!
+            Activate any investment package (from Bronze Rs. 500 up to Sovereign Rs. 50,000) to collect your guaranteed daily profit in <strong>only one click every 24 hours</strong>!
           </p>
 
           <button
             onClick={onGoToPlans}
             className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-extrabold text-sm shadow-xl shadow-amber-500/25 hover:brightness-110 transition cursor-pointer flex items-center justify-center gap-2 mx-auto"
           >
-            <span>Browse Investment Packages</span>
+            <span>Activate Package & Start Claiming</span>
             <ArrowRight className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
 
-        {/* Preview of Quizzes */}
-        <div className="max-w-2xl mx-auto">
-          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-            Sample Challenges Waiting for You
+        {/* Available Tiers Overview */}
+        <div className="max-w-2xl mx-auto space-y-3">
+          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            Available 1-Click Daily Profit Tiers
           </h4>
-          <div className="space-y-2.5 opacity-75">
-            {quizzes.slice(0, 3).map((q, idx) => (
-              <div key={idx} className="p-3.5 rounded-2xl bg-[#0c141d] border border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-slate-800 text-slate-400 flex items-center justify-center text-xs font-bold">
-                    #{idx + 1}
-                  </div>
-                  <div>
-                    <h5 className="font-bold text-slate-200 text-xs">{q.title}</h5>
-                    <p className="text-[11px] text-slate-400">{q.quizData.question}</p>
-                  </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {plans.slice(0, 4).map(p => (
+              <div
+                key={p.id}
+                className="p-4 rounded-2xl bg-[#0c141d] border border-slate-800 flex items-center justify-between"
+              >
+                <div>
+                  <h5 className="font-bold text-white text-xs sm:text-sm">{p.name}</h5>
+                  <p className="text-xs text-emerald-400 font-mono font-bold mt-0.5">
+                    Rs. {p.dailyMinEarn} Daily in 1-Click
+                  </p>
+                  <span className="text-[10px] text-slate-500">Contract: Rs. {p.price}</span>
                 </div>
-                <span className="text-xs font-mono font-bold text-amber-400">Locked 🔒</span>
+                <button
+                  onClick={onGoToPlans}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold transition cursor-pointer"
+                >
+                  Activate
+                </button>
               </div>
             ))}
           </div>
@@ -175,303 +202,158 @@ export const TasksView: React.FC<TasksViewProps> = ({
     );
   }
 
-  // Active Plan View
+  // Active Plan: 1-Click Daily Profit Claim
   return (
-    <div className="space-y-6 pb-6">
-      {/* Header Stats Card */}
+    <div className="space-y-6 pb-6 max-w-2xl mx-auto">
+      {/* Top Status Card */}
       <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-[#0c1b26] to-[#09121a] border border-emerald-500/35 shadow-xl">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-bold text-emerald-400 uppercase tracking-wide">
-                Daily Work Terminal
+                Upgraded Task Terminal
               </span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                {activePlan.name}
+                1-CLICK SYSTEM
               </span>
             </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-              Arithmetic Challenges
+              {activePlan.name}
             </h2>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Fixed Daily Profit Quota: <strong className="text-emerald-400 font-mono font-bold">Rs. {dailyProfitAmount.toLocaleString()}</strong>
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
             <div className="p-2 sm:px-3 rounded-xl bg-[#070d13] border border-emerald-500/30 text-right">
-              <span className="text-[10px] text-slate-400 block">Per Task Payout</span>
-              <span className="text-sm font-bold text-emerald-400 font-mono">
-                Rs. {taskReward.toFixed(2)}
+              <span className="text-[10px] text-slate-400 block">Status Today</span>
+              <span className={`text-xs sm:text-sm font-bold font-mono ${isClaimedToday ? 'text-emerald-400' : 'text-amber-400'}`}>
+                {isClaimedToday ? 'Claimed (1/1)' : 'Available (1/1)'}
               </span>
             </div>
-            <div className="p-2 sm:px-3 rounded-xl bg-[#070d13] border border-amber-500/30 text-right">
-              <span className="text-[10px] text-slate-400 block">Today's Profit</span>
-              <span className="text-sm font-bold text-amber-300 font-mono">
-                Rs. {earnedToday.toFixed(2)}
+            <div className="p-2 sm:px-3 rounded-xl bg-[#070d13] border border-slate-800 text-right">
+              <span className="text-[10px] text-slate-400 block">Total Profit</span>
+              <span className="text-xs sm:text-sm font-bold text-white font-mono">
+                Rs. {(user.totalProfitEarned || 0).toLocaleString()}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Progress Tracker */}
-        <div className="pt-4">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-slate-300 font-semibold flex items-center gap-1.5">
-              <BrainCircuit className="w-4 h-4 text-emerald-400" />
-              Tasks Completed Today
-            </span>
-            <span className="font-mono font-bold text-white text-sm">
-              {completedToday} / {totalTasksAllowed}
-            </span>
-          </div>
-          <div className="w-full h-3 rounded-full bg-slate-800 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-              style={{ width: `${(completedToday / totalTasksAllowed) * 100}%` }}
-            />
-          </div>
-
-          <p className="text-[11px] text-slate-400 mt-2 flex items-center justify-between">
-            <span>
-              {remainingToday > 0
-                ? `${remainingToday} tasks remaining to collect full Rs. ${activePlan.dailyMinEarn} daily quota.`
-                : '🎉 All tasks finished for today! Next dispatch arrives after midnight.'}
-            </span>
-            <span className="text-emerald-400 font-mono font-semibold">Resets 00:00 PKT</span>
-          </p>
-        </div>
-      </div>
-
-      {/* Finished for today celebration banner */}
-      {remainingToday === 0 && (
-        <div className="p-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-            <Trophy className="w-5 h-5 text-amber-400" />
-          </div>
-          <div>
-            <h4 className="font-bold text-emerald-200 text-xs sm:text-sm">
-              100% Daily Target Achieved!
-            </h4>
-            <p className="text-[11px] text-slate-300">
-              You have completed all {totalTasksAllowed} arithmetic challenges. Today's Rs. {activePlan.dailyMinEarn} has been credited to your balance.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Task List */}
-      <div className="space-y-3">
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-          Available Math Challenges
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {quizzes.slice(0, totalTasksAllowed).map((quiz, index) => {
-            const isCompleted = index < completedToday;
-            const isCurrent = index === completedToday && remainingToday > 0;
-            const isLocked = index > completedToday;
-
-            return (
-              <div
-                key={quiz.id}
-                className={`p-4 rounded-2xl border transition-all ${
-                  isCompleted
-                    ? 'bg-[#081216] border-emerald-500/30 opacity-80'
-                    : isCurrent
-                    ? 'bg-[#0e1824] border-emerald-400 shadow-lg shadow-emerald-950/30 ring-1 ring-emerald-500/30'
-                    : 'bg-[#0a0f16] border-slate-800 opacity-60'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                        isCompleted
-                          ? 'bg-emerald-500 text-slate-950'
-                          : isCurrent
-                          ? 'bg-amber-400 text-slate-950'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white text-xs sm:text-sm">{quiz.title}</h4>
-                      <span className="text-[10px] text-slate-400">{quiz.category}</span>
-                    </div>
-                  </div>
-
-                  <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
-                    +Rs. {taskReward.toFixed(2)}
-                  </span>
-                </div>
-
-                <p className="text-xs text-slate-300 mb-3 bg-[#060a0f] p-2 rounded-xl border border-slate-800/80 font-mono">
-                  {quiz.quizData.question}
-                </p>
-
-                <div>
-                  {isCompleted ? (
-                    <div className="w-full py-2 rounded-xl bg-emerald-950/40 text-emerald-300 border border-emerald-500/20 text-xs font-bold flex items-center justify-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>Completed & Paid (Rs. {taskReward.toFixed(2)})</span>
-                    </div>
-                  ) : isCurrent ? (
-                    <button
-                      onClick={() => handleStartQuiz(quiz)}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:brightness-110 text-slate-950 text-xs font-extrabold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-500/20"
-                    >
-                      <Zap className="w-3.5 h-3.5 fill-slate-950" />
-                      <span>Solve & Claim Cash</span>
-                    </button>
-                  ) : (
-                    <div className="w-full py-2 rounded-xl bg-slate-900 text-slate-500 text-xs font-semibold flex items-center justify-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Complete Task #{index} First</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Interactive Quiz Runner Modal */}
-      {activeQuiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-3xl bg-[#0c1622] border border-emerald-500/40 p-5 sm:p-6 shadow-2xl">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                  <BrainCircuit className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-sm">{activeQuiz.title}</h3>
-                  <span className="text-[10px] text-slate-400">Difficulty: {activeQuiz.difficulty}</span>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <span className="text-[10px] text-slate-400 block">Reward</span>
-                <span className="font-mono text-xs font-extrabold text-emerald-400">
-                  Rs. {taskReward.toFixed(2)}
+        {/* 1-Click Main Claim Action */}
+        <div className="pt-6 pb-2 text-center">
+          {!isClaimedToday ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 max-w-md mx-auto">
+                <span className="text-xs text-emerald-300 font-semibold block mb-1">
+                  Today's Fixed Daily Profit Ready
                 </span>
+                <div className="text-3xl sm:text-4xl font-extrabold font-mono text-emerald-400 tracking-tight">
+                  {settings.currencySymbol} {dailyProfitAmount.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  One-time daily claim • Single click will immediately credit funds to your wallet balance
+                </p>
               </div>
-            </div>
 
-            {/* Quiz Question Card */}
-            <div className="my-5 p-4 rounded-2xl bg-[#070c12] border border-slate-800 text-center">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
-                Solve the arithmetic expression:
-              </span>
-              <p className="text-lg sm:text-xl font-bold font-mono text-white tracking-wide">
-                {activeQuiz.quizData.question}
+              <button
+                onClick={handleClaimProfitOneClick}
+                disabled={isClaiming}
+                className="w-full max-w-md py-4 px-6 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-400 hover:brightness-110 disabled:opacity-60 text-slate-950 font-black text-base transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-xl shadow-emerald-500/25 flex items-center justify-center gap-2.5 mx-auto"
+              >
+                <Zap className={`w-5 h-5 fill-slate-950 ${isClaiming ? 'animate-spin' : 'animate-bounce'}`} />
+                <span>
+                  {isClaiming
+                    ? 'Processing Cloud Claim...'
+                    : `Claim Rs. ${dailyProfitAmount.toLocaleString()} Profit in 1-Click`}
+                </span>
+              </button>
+
+              <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Instant 24/7 wallet credit • Only one claim allowed per calendar day</span>
               </p>
             </div>
-
-            {/* Options */}
-            <div className="space-y-2.5 mb-5">
-              {activeQuiz.quizData.options.map((opt, oidx) => {
-                const isSelected = selectedOption === oidx;
-                let optStyles = 'bg-[#0f1722] border-slate-800 hover:border-slate-700 text-slate-200';
-
-                if (isSelected && !quizResult) {
-                  optStyles = 'bg-emerald-500/20 border-emerald-400 text-emerald-300 ring-1 ring-emerald-400';
-                }
-
-                if (quizResult?.submitted) {
-                  if (oidx === activeQuiz.quizData.correctIndex) {
-                    optStyles = 'bg-emerald-500/30 border-emerald-400 text-emerald-200 font-bold';
-                  } else if (isSelected && !quizResult.isCorrect) {
-                    optStyles = 'bg-rose-500/20 border-rose-500 text-rose-300 font-bold';
-                  } else {
-                    optStyles = 'bg-[#090d14] border-slate-850 opacity-40 text-slate-400';
-                  }
-                }
-
-                return (
-                  <button
-                    key={oidx}
-                    disabled={quizResult?.submitted}
-                    onClick={() => handleSelectOption(oidx)}
-                    className={`w-full p-3.5 rounded-xl border font-mono text-sm font-semibold flex items-center justify-between transition cursor-pointer ${optStyles}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="w-6 h-6 rounded-lg bg-slate-800/80 flex items-center justify-center text-xs text-slate-300 font-bold">
-                        {String.fromCharCode(65 + oidx)}
-                      </span>
-                      <span>{opt}</span>
-                    </div>
-
-                    {quizResult?.submitted && oidx === activeQuiz.quizData.correctIndex && (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    )}
-                    {quizResult?.submitted && isSelected && !quizResult.isCorrect && (
-                      <XCircle className="w-4 h-4 text-rose-400" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Result Explanation */}
-            {quizResult && (
-              <div
-                className={`p-3.5 rounded-2xl border mb-5 text-xs ${
-                  quizResult.isCorrect
-                    ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-                    : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 font-bold mb-1">
-                  {quizResult.isCorrect ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>{quizResult.message}</span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="w-4 h-4 text-rose-400" />
-                      <span>{quizResult.message}</span>
-                    </>
-                  )}
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="p-5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 max-w-md mx-auto text-center">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto mb-2">
+                  <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed font-mono">
-                  Explanation: {quizResult.explanation}
+                <h3 className="text-base sm:text-lg font-extrabold text-emerald-200">
+                  Today's Profit Successfully Claimed!
+                </h3>
+                <div className="text-2xl font-bold font-mono text-emerald-400 mt-1 mb-1">
+                  +{settings.currencySymbol} {dailyProfitAmount.toLocaleString()} Credited
+                </div>
+                <p className="text-xs text-slate-300">
+                  You have successfully collected your 1-time daily profit quota for today.
                 </p>
               </div>
-            )}
 
-            {/* Action Buttons */}
-            <div>
-              {!quizResult ? (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleCloseQuiz}
-                    className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    disabled={selectedOption === null || isSubmitting}
-                    onClick={handleSubmitAnswer}
-                    className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20"
-                  >
-                    {isSubmitting ? 'Evaluating...' : 'Confirm Answer'}
-                  </button>
+              {/* Countdown Card */}
+              <div className="p-3.5 rounded-2xl bg-[#070d13] border border-slate-800 max-w-md mx-auto flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Clock className="w-4 h-4 text-amber-400" />
+                  <span>Next 1-Click Claim Unlocks in:</span>
                 </div>
-              ) : (
-                <button
-                  onClick={handleCloseQuiz}
-                  className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg shadow-emerald-500/20"
-                >
-                  {quizResult.isCorrect ? 'Awesome! Next Task' : 'Understood, Continue'}
-                </button>
-              )}
+                <span className="font-mono font-bold text-amber-400 text-sm">
+                  {timeLeft}
+                </span>
+              </div>
+
+              <div className="w-full max-w-md mx-auto py-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 font-bold text-xs flex items-center justify-center gap-2">
+                <Lock className="w-4 h-4 text-slate-500" />
+                <span>Only 1 Claim Per Day Allowed (Resets 00:00 Midnight PKT)</span>
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Feedback message banner */}
+        {claimFeedback && (
+          <div
+            className={`mt-4 p-3.5 rounded-xl border text-xs flex items-center gap-2 ${
+              claimFeedback.success
+                ? 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+                : 'bg-rose-950/60 border-rose-500/40 text-rose-300'
+            }`}
+          >
+            {claimFeedback.success ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span>{claimFeedback.message}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Package Contract Summary Card */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-[#091017] border border-slate-800">
+        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+          Contract Details & Daily Guarantee
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs font-mono">
+          <div className="p-2.5 rounded-xl bg-[#060a0f] border border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">Daily Payout</span>
+            <span className="font-bold text-emerald-400">Rs. {dailyProfitAmount}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[#060a0f] border border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">Contract Term</span>
+            <span className="font-bold text-white">{activePlan.validityDays} Days</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[#060a0f] border border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">Total Est. Return</span>
+            <span className="font-bold text-amber-300">Rs. {activePlan.totalEstimatedReturn.toLocaleString()}</span>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[#060a0f] border border-slate-800/80">
+            <span className="text-[10px] text-slate-500 block">Net Profit</span>
+            <span className="font-bold text-teal-300">Rs. {(activePlan.totalEstimatedReturn - activePlan.price).toLocaleString()}</span>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -471,6 +471,28 @@ export const DEFAULT_USERS: User[] = [
     role: 'user',
     createdAt: '2026-11-01T00:00:00.000Z',
     status: 'active'
+  },
+  {
+    id: 'user-mahar-full-email',
+    fullName: 'Mahar Madni',
+    phone: '03087348367',
+    email: 'maharmadni058@gmail.com',
+    password: 'Mahar11223344',
+    referralCode: 'ARM058',
+    balance: 500,
+    totalDeposited: 1500,
+    totalWithdrawn: 0,
+    totalProfitEarned: 292,
+    referralEarnings: 150,
+    activePlanId: 'plan-silver-1500',
+    activePlanName: 'Silver Standard Plan',
+    planActivatedAt: '2026-11-01T00:00:00.000Z',
+    planExpiresAt: '2026-12-01T00:00:00.000Z',
+    dailyTasksCompletedToday: 0,
+    lastTaskDate: new Date().toISOString().split('T')[0],
+    role: 'user',
+    createdAt: '2026-11-01T00:00:00.000Z',
+    status: 'active'
   }
 ];
 

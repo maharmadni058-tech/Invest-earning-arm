@@ -3,7 +3,8 @@ import {
   doc,
   setDoc,
   getDocs,
-  updateDoc
+  updateDoc,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import {
@@ -114,16 +115,57 @@ class StorageService {
     this.isFirestoreInitialized = true;
 
     try {
-      // 1. Sync users in real time from Firestore
+      // 1. Live onSnapshot for users: instantly sync any account registered on any mobile
+      onSnapshot(collection(db, 'users'), (snapshot) => {
+        const firestoreUsers: User[] = [];
+        snapshot.forEach(d => {
+          if (d.data()) firestoreUsers.push(d.data() as User);
+        });
+        if (firestoreUsers.length > 0) {
+          const localUsers = this.getUsers();
+          const userMap = new Map<string, User>();
+          DEFAULT_USERS.forEach(u => userMap.set(u.id, u));
+          localUsers.forEach(u => userMap.set(u.id, u));
+          firestoreUsers.forEach(u => userMap.set(u.id, u));
+
+          const merged = Array.from(userMap.values());
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
+          this.notify();
+        }
+      }, (err) => {
+        handleFirestoreError(err, OperationType.GET, 'users');
+      });
+
+      // 2. Live onSnapshot for deposits
+      onSnapshot(collection(db, 'deposits'), (snapshot) => {
+        const list: Deposit[] = [];
+        snapshot.forEach(d => {
+          if (d.data()) list.push(d.data() as Deposit);
+        });
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(list));
+        this.notify();
+      }, (err) => {
+        handleFirestoreError(err, OperationType.GET, 'deposits');
+      });
+
+      // 3. Live onSnapshot for withdrawals
+      onSnapshot(collection(db, 'withdrawals'), (snapshot) => {
+        const list: Withdrawal[] = [];
+        snapshot.forEach(d => {
+          if (d.data()) list.push(d.data() as Withdrawal);
+        });
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(list));
+        this.notify();
+      }, (err) => {
+        handleFirestoreError(err, OperationType.GET, 'withdrawals');
+      });
+
+      // Initial fetches & seed
       this.fetchFirestoreUsers();
-
-      // 2. Sync deposits in real time from Firestore
       this.fetchFirestoreDeposits();
-
-      // 3. Sync withdrawals in real time from Firestore
       this.fetchFirestoreWithdrawals();
-
-      // 4. Seed default owner account to Firestore if not present
       this.seedDefaultOwner();
     } catch (err) {
       console.warn('Firestore real-time sync init error:', err);
@@ -872,6 +914,79 @@ class StorageService {
     } catch {}
 
     return { success: true, message: `${plan.name} is now active!` };
+  }
+
+  // --- 1-CLICK DAILY PROFIT CLAIM (ONLY ONE TIME PER DAY) ---
+  public async claimDailyProfit(userId: string): Promise<{
+    success: boolean;
+    message: string;
+    profitEarned: number;
+    user?: User;
+  }> {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const users = this.getUsers();
+    const user = users.find(u => u.id === userId);
+
+    if (!user) {
+      return { success: false, message: 'User not found. Please log in.', profitEarned: 0 };
+    }
+
+    // Check if already claimed today (Only one time per day)
+    if (user.lastTaskDate === todayStr && user.dailyTasksCompletedToday >= 1) {
+      return {
+        success: false,
+        message: "You have already claimed today's daily profit! Next 1-click claim unlocks tomorrow at 00:00 midnight.",
+        profitEarned: 0,
+        user
+      };
+    }
+
+    // Find user's active plan
+    const plans = this.getPlans();
+    const activePlan = plans.find(p => p.id === user.activePlanId);
+
+    if (!activePlan) {
+      return {
+        success: false,
+        message: 'No active investment package found. Please activate an investment package to unlock daily profits!',
+        profitEarned: 0,
+        user
+      };
+    }
+
+    const profitEarned = activePlan.dailyMinEarn || activePlan.dailyMaxEarn || 46;
+
+    // Credit wallet balance and mark as claimed for today
+    user.balance += profitEarned;
+    user.totalProfitEarned += profitEarned;
+    user.dailyTasksCompletedToday = 1;
+    user.lastTaskDate = todayStr;
+
+    await this.updateUser(user);
+
+    this.addTransaction({
+      userId: user.id,
+      type: 'task_earning',
+      amount: profitEarned,
+      title: 'Daily Profit Claimed (1-Click)',
+      description: `Daily profit collected for ${activePlan.name} (Rs. ${profitEarned})`,
+      status: 'completed'
+    });
+
+    try {
+      fetch('/api/tasks/claim-daily-profit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      }).catch(() => {});
+    } catch {}
+
+    return {
+      success: true,
+      message: `🎉 Success! Rs. ${profitEarned.toLocaleString()} daily profit credited to your wallet in 1 click!`,
+      profitEarned,
+      user
+    };
   }
 
   // --- TASK QUIZ EARNINGS ---

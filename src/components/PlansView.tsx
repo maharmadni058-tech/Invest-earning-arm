@@ -133,7 +133,7 @@ export const PlansView: React.FC<PlansViewProps> = ({
           Choose Your Investment Package
         </h2>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Lock in 30-day contracts with guaranteed daily returns dispatched straight from arithmetic tasks.
+          Lock in 30-day contracts with guaranteed daily returns claimable in only 1-click every 24 hours.
         </p>
 
         {/* Filter Tabs */}
