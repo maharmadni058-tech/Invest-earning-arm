@@ -34,11 +34,11 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
       id: 'plans' as TabType,
       label: 'Plans',
       icon: TrendingUp,
-      badge: 'HOT'
+      badge: 'TOP'
     },
     {
       id: 'tasks' as TabType,
-      label: 'Tasks',
+      label: 'Profit',
       icon: BrainCircuit,
       badge: hasClaimReady ? '1' : null
     },
@@ -57,7 +57,7 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#06090c]/95 border-t border-slate-800/80 backdrop-blur-xl px-2 py-1.5 sm:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-black/95 border-t border-neutral-800 backdrop-blur-xl px-2 py-1.5 sm:hidden">
       <div className="max-w-md mx-auto grid grid-cols-5 gap-1">
         {navItems.map(item => {
           const Icon = item.icon;
@@ -68,25 +68,17 @@ export const BottomNavigation: React.FC<BottomNavigationProps> = ({
               onClick={() => onChangeTab(item.id)}
               className={`relative flex flex-col items-center justify-center py-1.5 px-1 rounded-xl transition-all cursor-pointer ${
                 isActive
-                  ? 'text-emerald-400 bg-emerald-500/10'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'text-white bg-neutral-900 border border-neutral-800'
+                  : 'text-neutral-400 hover:text-white'
               }`}
             >
               {item.badge && (
-                <span
-                  className={`absolute -top-1 right-2 text-[9px] font-extrabold px-1 rounded-full ${
-                    item.badge === 'HOT'
-                      ? 'bg-rose-500 text-white'
-                      : item.badge === '10%'
-                      ? 'bg-amber-500/90 text-slate-950'
-                      : 'bg-emerald-500 text-slate-950 ring-1 ring-emerald-400'
-                  }`}
-                >
+                <span className="absolute -top-1 right-2 text-[9px] font-extrabold px-1 rounded-full bg-white text-black border border-neutral-200">
                   {item.badge}
                 </span>
               )}
-              <Icon className={`w-5 h-5 ${isActive ? 'scale-110' : ''} transition-transform`} />
-              <span className={`text-[10px] mt-1 font-semibold ${isActive ? 'text-emerald-400' : 'text-slate-400'}`}>
+              <Icon className={`w-5 h-5 ${isActive ? 'scale-110 text-white' : 'text-neutral-400'} transition-transform`} />
+              <span className={`text-[10px] mt-1 font-semibold ${isActive ? 'text-white' : 'text-neutral-400'}`}>
                 {item.label}
               </span>
             </button>

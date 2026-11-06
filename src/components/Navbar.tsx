@@ -61,20 +61,24 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-2.5 select-none cursor-pointer"
           title="Invest in Arm"
         >
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 shadow-lg shadow-emerald-500/25 border border-emerald-400/30">
-            <TrendingUp className="w-5 h-5 text-white" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-amber-400 rounded-full border-2 border-[#06090c] animate-pulse" />
+          <div className="relative flex items-center justify-center w-10 h-10 rounded-full overflow-hidden shadow-lg shadow-amber-500/20 border-2 border-amber-400/50 bg-black shrink-0">
+            <img
+              src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
+              alt="Invest in Arm Logo"
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 rounded-full border border-black animate-pulse" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-base sm:text-lg tracking-tight text-white flex items-center gap-1">
-                Invest in <span className="text-emerald-400 underline decoration-emerald-500/50 underline-offset-4">Arm</span>
+                Invest in <span className="text-amber-400 underline decoration-amber-500/50 underline-offset-4">Arm</span>
               </span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                PRO
+              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                OFFICIAL
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 hidden sm:block">Smart Micro-Investing & Daily Profit</p>
+            <p className="text-[10px] text-slate-400 hidden sm:block">Stock Market & Daily Micro-Profit Portal</p>
           </div>
         </div>
 
