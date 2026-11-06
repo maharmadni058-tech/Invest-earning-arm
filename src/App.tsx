@@ -68,6 +68,7 @@ export default function App() {
 
   // Re-sync on storage changes
   useEffect(() => {
+    storage.syncFromServer();
     const unsubscribe = storage.subscribe(() => {
       setCurrentUser(storage.getCurrentUser());
       setPlans(storage.getPlans());

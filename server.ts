@@ -445,8 +445,31 @@ async function startServer() {
       deposits: db.deposits,
       withdrawals: db.withdrawals,
       transactions: db.transactions,
-      users: db.users.map(({ password, ...u }) => u) // omit passwords for public list
+      users: db.users // full synchronized user list so all devices can authenticate
     });
+  });
+
+  // Admin get all users
+  app.get('/api/admin/users', (req, res) => {
+    res.json({ success: true, users: db.users });
+  });
+
+  // Client to server batch user sync
+  app.post('/api/admin/sync-users', (req, res) => {
+    const { users } = req.body;
+    if (Array.isArray(users)) {
+      users.forEach(clientU => {
+        if (!clientU || !clientU.id) return;
+        const idx = db.users.findIndex(u => u.id === clientU.id || (clientU.email && u.email === clientU.email) || (clientU.phone && u.phone === clientU.phone));
+        if (idx >= 0) {
+          db.users[idx] = { ...db.users[idx], ...clientU, password: db.users[idx].password || clientU.password };
+        } else {
+          db.users.push(clientU);
+        }
+      });
+      saveDbSync();
+    }
+    res.json({ success: true, count: db.users.length, users: db.users });
   });
 
   // Register
@@ -479,11 +502,14 @@ async function startServer() {
     const generatedCode = 'ARM' + Math.floor(1000 + Math.random() * 9000);
     const todayStr = new Date().toISOString().split('T')[0];
 
+    const userEmail = isEmail ? identifier.toLowerCase() : (email ? email.trim().toLowerCase() : undefined);
+    const userPhone = !isEmail ? identifier : (phone && !phone.includes('@') ? phone.trim() : identifier);
+
     const newUser = {
       id: 'user-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       fullName: (fullName || 'Investor').trim(),
-      phone: isEmail ? (identifier.includes('03') ? identifier : '03087348367') : identifier,
-      email: isEmail ? identifier.toLowerCase() : (cleanIdentifier.includes('@') ? cleanIdentifier : undefined),
+      phone: userPhone,
+      email: userEmail,
       password: password || 'Mahar11223344',
       referralCode: generatedCode,
       referredBy: referredByCode,
@@ -513,7 +539,7 @@ async function startServer() {
     };
     db.transactions.unshift(bonusTx);
 
-    saveDb();
+    saveDbSync();
 
     res.json({
       success: true,

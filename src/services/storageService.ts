@@ -116,7 +116,33 @@ class StorageService {
         if (data.deposits) localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(data.deposits));
         if (data.withdrawals) localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(data.withdrawals));
         if (data.transactions) localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(data.transactions));
-        if (data.users) localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(data.users));
+
+        if (Array.isArray(data.users) && data.users.length > 0) {
+          const localUsers = this.getUsers();
+          const userMap = new Map<string, User>();
+          localUsers.forEach(u => userMap.set(u.id, u));
+
+          data.users.forEach((sUser: User) => {
+            const localU = userMap.get(sUser.id);
+            userMap.set(sUser.id, {
+              ...sUser,
+              password: sUser.password || localU?.password || 'Mahar11223344'
+            });
+          });
+
+          const mergedUsers = Array.from(userMap.values());
+          localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mergedUsers));
+
+          // Also push any pending local accounts up to the server so all other mobiles see them
+          const unsynced = localUsers.filter(lu => !data.users.some((su: User) => su.id === lu.id));
+          if (unsynced.length > 0) {
+            fetch('/api/admin/sync-users', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ users: unsynced })
+            }).catch(() => {});
+          }
+        }
 
         const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
         if (currentId) {
@@ -261,16 +287,16 @@ class StorageService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneOrEmail, password })
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.user) {
-          this.setCurrentUserId(data.user.id);
-          const users = this.getUsers().filter(u => u.id !== data.user.id);
-          users.push(data.user);
-          this.saveUsers(users);
-          await this.syncFromServer();
-          return { success: true, message: data.message, user: data.user };
-        }
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && data.user) {
+        this.setCurrentUserId(data.user.id);
+        const users = this.getUsers().filter(u => u.id !== data.user.id);
+        users.push(data.user);
+        this.saveUsers(users);
+        await this.syncFromServer();
+        return { success: true, message: data.message, user: data.user };
+      } else if (data && data.message && (res.status === 401 || res.status === 400)) {
+        return { success: false, message: data.message };
       }
     } catch (err) {
       // Offline / static hosting fallback
@@ -353,16 +379,16 @@ class StorageService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData.success && resData.user) {
-          this.setCurrentUserId(resData.user.id);
-          const users = this.getUsers().filter(u => u.id !== resData.user.id);
-          users.push(resData.user);
-          this.saveUsers(users);
-          await this.syncFromServer();
-          return { success: true, message: resData.message, user: resData.user };
-        }
+      const resData = await res.json().catch(() => null);
+      if (res.ok && resData?.success && resData.user) {
+        this.setCurrentUserId(resData.user.id);
+        const users = this.getUsers().filter(u => u.id !== resData.user.id);
+        users.push(resData.user);
+        this.saveUsers(users);
+        await this.syncFromServer();
+        return { success: true, message: resData.message, user: resData.user };
+      } else if (resData && resData.message && (res.status === 400 || res.status === 409)) {
+        return { success: false, message: resData.message };
       }
     } catch (err) {
       // Offline fallback
@@ -380,11 +406,14 @@ class StorageService {
 
     const generatedCode = 'ARM' + Math.floor(1000 + Math.random() * 9000);
     const todayStr = new Date().toISOString().split('T')[0];
+    const userEmail = isEmail ? identifier.toLowerCase() : (data.email ? data.email.trim().toLowerCase() : undefined);
+    const userPhone = !isEmail ? identifier : (data.phone && !data.phone.includes('@') ? data.phone.trim() : identifier);
+
     const newUser: User = {
       id: 'user-' + Date.now(),
       fullName: data.fullName.trim() || 'Investor',
-      phone: isEmail ? (identifier.includes('03') ? identifier : '03087348367') : identifier,
-      email: isEmail ? identifier.toLowerCase() : (cleanIdentifier.includes('@') ? cleanIdentifier : undefined),
+      phone: userPhone,
+      email: userEmail,
       password: data.password || 'Mahar11223344',
       referralCode: generatedCode,
       referredBy: data.referralCode?.trim().toUpperCase(),
@@ -402,6 +431,14 @@ class StorageService {
     users.push(newUser);
     this.saveUsers(users);
     this.setCurrentUserId(newUser.id);
+
+    // Try syncing to server
+    fetch('/api/admin/sync-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ users: [newUser] })
+    }).catch(() => {});
+
     return { success: true, message: 'Account registered with Rs. 10 bonus!', user: newUser };
   }
 

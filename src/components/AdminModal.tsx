@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   ShieldCheck,
@@ -64,6 +64,48 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Settings form state
   const [formSettings, setFormSettings] = useState<AppSettings>(settings);
 
+  // Live real-time synced data states
+  const [users, setUsers] = useState<User[]>(storage.getUsers());
+  const [deposits, setDeposits] = useState<Deposit[]>(storage.getDeposits());
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>(storage.getWithdrawals());
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const fetchLatestAdminData = async () => {
+    setIsSyncing(true);
+    try {
+      await storage.syncFromServer();
+      const res = await fetch('/api/admin/users');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.users && Array.isArray(data.users)) {
+          setUsers(data.users);
+          storage.saveUsers(data.users);
+        }
+      }
+    } catch (e) {}
+    setUsers(storage.getUsers());
+    setDeposits(storage.getDeposits());
+    setWithdrawals(storage.getWithdrawals());
+    setIsSyncing(false);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchLatestAdminData();
+    const unsub = storage.subscribe(() => {
+      setUsers(storage.getUsers());
+      setDeposits(storage.getDeposits());
+      setWithdrawals(storage.getWithdrawals());
+    });
+    const interval = setInterval(() => {
+      fetchLatestAdminData();
+    }, 4000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleAdminLogin = (e: React.FormEvent) => {
@@ -76,6 +118,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     ) {
       storage.setAdminLoggedIn(true);
       setIsAdminAuth(true);
+      fetchLatestAdminData();
     } else {
       setAuthError('Incorrect Admin Secret Key. Please verify and try again.');
     }
@@ -85,10 +128,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     storage.setAdminLoggedIn(false);
     setIsAdminAuth(false);
   };
-
-  const deposits = storage.getDeposits();
-  const withdrawals = storage.getWithdrawals();
-  const users = storage.getUsers();
 
   const pendingDeposits = deposits.filter(d => d.status === 'pending');
   const pendingWithdrawals = withdrawals.filter(w => w.status === 'pending');
@@ -154,12 +193,24 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
           <div className="flex items-center gap-2">
             {isAdminAuth && (
-              <button
-                onClick={handleAdminLogout}
-                className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer border border-slate-800"
-              >
-                Lock
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={fetchLatestAdminData}
+                  disabled={isSyncing}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 border border-amber-500/30 transition cursor-pointer"
+                  title="Sync with server"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+                  <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : 'Sync Live'}</span>
+                </button>
+                <button
+                  onClick={handleAdminLogout}
+                  className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer border border-slate-800"
+                >
+                  Lock
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
