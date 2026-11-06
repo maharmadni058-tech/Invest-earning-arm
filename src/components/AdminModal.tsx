@@ -73,6 +73,9 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const fetchLatestAdminData = async () => {
     setIsSyncing(true);
     try {
+      await storage.fetchFirestoreUsers();
+      await storage.fetchFirestoreDeposits();
+      await storage.fetchFirestoreWithdrawals();
       await storage.syncFromServer();
       const res = await fetch('/api/admin/users');
       if (res.ok) {

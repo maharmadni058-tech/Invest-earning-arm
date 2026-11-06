@@ -1,4 +1,12 @@
 import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  updateDoc
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from './firebase';
+import {
   User,
   InvestmentPlan,
   PaymentMethod,
@@ -32,6 +40,7 @@ const STORAGE_KEYS = {
 class StorageService {
   private listeners: (() => void)[] = [];
   private syncTimer: any = null;
+  private isFirestoreInitialized = false;
 
   constructor() {
     this.init();
@@ -57,7 +66,7 @@ class StorageService {
   private init() {
     if (typeof window === 'undefined') return;
 
-    // Load defaults if missing
+    // Load defaults if missing locally
     if (!localStorage.getItem(STORAGE_KEYS.SETTINGS)) {
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
     }
@@ -86,24 +95,131 @@ class StorageService {
       localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify([]));
     }
 
-    // Purge any legacy demo user from session
-    const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    if (currentId === 'user-demo-1' || currentId === 'user-ref-1' || currentId === 'user-ref-2') {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-    }
+    // Connect real-time Firestore listeners for multi-mobile cloud sync
+    this.initFirestoreSync();
 
-    // Immediate server sync
+    // Secondary fallback sync to node backend if running
     this.syncFromServer();
-
-    // Start background sync every 5 seconds so multi-mobile changes reflect in real-time
     if (!this.syncTimer) {
       this.syncTimer = setInterval(() => {
         this.syncFromServer();
+        this.fetchFirestoreUsers();
       }, 5000);
     }
   }
 
-  // --- SERVER SYNC ---
+  // --- FIRESTORE REAL-TIME SYNC ---
+  private initFirestoreSync() {
+    if (this.isFirestoreInitialized) return;
+    this.isFirestoreInitialized = true;
+
+    try {
+      // 1. Sync users in real time from Firestore
+      this.fetchFirestoreUsers();
+
+      // 2. Sync deposits in real time from Firestore
+      this.fetchFirestoreDeposits();
+
+      // 3. Sync withdrawals in real time from Firestore
+      this.fetchFirestoreWithdrawals();
+
+      // 4. Seed default owner account to Firestore if not present
+      this.seedDefaultOwner();
+    } catch (err) {
+      console.warn('Firestore real-time sync init error:', err);
+    }
+  }
+
+  private async seedDefaultOwner() {
+    try {
+      const usersCol = collection(db, 'users');
+      const snap = await getDocs(usersCol);
+      const hasOwner = snap.docs.some(d => {
+        const u = d.data() as User;
+        return u.id === 'user-mahar-owner' || u.phone === '03087348367' || u.email === '58@gmail.com';
+      });
+
+      if (!hasOwner && DEFAULT_USERS[0]) {
+        await setDoc(doc(db, 'users', DEFAULT_USERS[0].id), DEFAULT_USERS[0]);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'users/user-mahar-owner');
+    }
+  }
+
+  public async fetchFirestoreUsers(): Promise<User[]> {
+    try {
+      const snap = await getDocs(collection(db, 'users'));
+      const firestoreUsers: User[] = [];
+      snap.forEach(d => {
+        if (d.data()) {
+          firestoreUsers.push(d.data() as User);
+        }
+      });
+
+      if (firestoreUsers.length > 0) {
+        const localUsers = this.getUsers();
+        const userMap = new Map<string, User>();
+
+        // Seed with defaults
+        DEFAULT_USERS.forEach(u => userMap.set(u.id, u));
+        localUsers.forEach(u => userMap.set(u.id, u));
+        firestoreUsers.forEach(u => userMap.set(u.id, u));
+
+        const merged = Array.from(userMap.values());
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
+        this.notify();
+        return merged;
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.GET, 'users');
+    }
+    return this.getUsers();
+  }
+
+  public async fetchFirestoreDeposits(): Promise<Deposit[]> {
+    try {
+      const snap = await getDocs(collection(db, 'deposits'));
+      const list: Deposit[] = [];
+      snap.forEach(d => {
+        if (d.data()) {
+          list.push(d.data() as Deposit);
+        }
+      });
+      if (list.length > 0) {
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(list));
+        this.notify();
+        return list;
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.GET, 'deposits');
+    }
+    return this.getDeposits();
+  }
+
+  public async fetchFirestoreWithdrawals(): Promise<Withdrawal[]> {
+    try {
+      const snap = await getDocs(collection(db, 'withdrawals'));
+      const list: Withdrawal[] = [];
+      snap.forEach(d => {
+        if (d.data()) {
+          list.push(d.data() as Withdrawal);
+        }
+      });
+      if (list.length > 0) {
+        list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(list));
+        this.notify();
+        return list;
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.GET, 'withdrawals');
+    }
+    return this.getWithdrawals();
+  }
+
+  // --- SERVER SYNC (SECONDARY FALLBACK) ---
   public async syncFromServer(): Promise<void> {
     try {
       const res = await fetch('/api/state');
@@ -113,8 +229,8 @@ class StorageService {
         if (data.plans) localStorage.setItem(STORAGE_KEYS.PLANS, JSON.stringify(data.plans));
         if (data.paymentMethods) localStorage.setItem(STORAGE_KEYS.PAYMENT_METHODS, JSON.stringify(data.paymentMethods));
         if (data.quizzes) localStorage.setItem(STORAGE_KEYS.QUIZZES, JSON.stringify(data.quizzes));
-        if (data.deposits) localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(data.deposits));
-        if (data.withdrawals) localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(data.withdrawals));
+        if (data.deposits && data.deposits.length > 0) localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(data.deposits));
+        if (data.withdrawals && data.withdrawals.length > 0) localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(data.withdrawals));
         if (data.transactions) localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(data.transactions));
 
         if (Array.isArray(data.users) && data.users.length > 0) {
@@ -133,7 +249,7 @@ class StorageService {
           const mergedUsers = Array.from(userMap.values());
           localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mergedUsers));
 
-          // Also push any pending local accounts up to the server so all other mobiles see them
+          // Also push any pending local accounts up to the server
           const unsynced = localUsers.filter(lu => !data.users.some((su: User) => su.id === lu.id));
           if (unsynced.length > 0) {
             fetch('/api/admin/sync-users', {
@@ -143,23 +259,10 @@ class StorageService {
             }).catch(() => {});
           }
         }
-
-        const currentId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-        if (currentId) {
-          const userRes = await fetch(`/api/auth/me/${currentId}`);
-          if (userRes.ok) {
-            const userData = await userRes.json();
-            if (userData.user) {
-              const users = this.getUsers().filter(u => u.id !== userData.user.id);
-              users.push(userData.user);
-              localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-            }
-          }
-        }
         this.notify();
       }
     } catch (e) {
-      // offline or server restarting
+      // offline or static hosting
     }
   }
 
@@ -175,6 +278,14 @@ class StorageService {
   public async saveSettings(settings: AppSettings): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
     this.notify();
+
+    // Save to Firestore
+    try {
+      await setDoc(doc(db, 'settings', 'global'), settings);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'settings/global');
+    }
+
     try {
       await fetch('/api/settings', {
         method: 'POST',
@@ -262,9 +373,16 @@ class StorageService {
     return user;
   }
 
-  public updateUser(updatedUser: User): void {
+  public async updateUser(updatedUser: User): Promise<void> {
     const users = this.getUsers().map(u => (u.id === updatedUser.id ? updatedUser : u));
     this.saveUsers(users);
+
+    // Save to Firestore so every mobile receives the updated balance/tasks
+    try {
+      await setDoc(doc(db, 'users', updatedUser.id), updatedUser, { merge: true });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `users/${updatedUser.id}`);
+    }
   }
 
   public setCurrentUserId(userId: string | null): void {
@@ -276,11 +394,15 @@ class StorageService {
     this.notify();
   }
 
-  // Centralized Server Auth Login (works across all mobiles)
+  // Multi-Device Cloud Login (Works across all mobiles & browsers)
   public async login(
     phoneOrEmail: string,
     password?: string
   ): Promise<{ success: boolean; message: string; user?: User }> {
+    // 1. First fetch fresh cloud users from Firestore so any user registered on another mobile is found
+    await this.fetchFirestoreUsers();
+
+    // 2. Also try server auth if reachable
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -293,16 +415,13 @@ class StorageService {
         const users = this.getUsers().filter(u => u.id !== data.user.id);
         users.push(data.user);
         this.saveUsers(users);
-        await this.syncFromServer();
         return { success: true, message: data.message, user: data.user };
-      } else if (data && data.message && (res.status === 401 || res.status === 400)) {
-        return { success: false, message: data.message };
       }
     } catch (err) {
-      // Offline / static hosting fallback
+      // Offline or static host fallback
     }
 
-    // Flexible local matching
+    // 3. Robust Cloud & Local matching across all devices
     const clean = (phoneOrEmail || '').trim().toLowerCase();
     const cleanDigits = clean.replace(/\D/g, '');
     const users = this.getUsers();
@@ -319,23 +438,29 @@ class StorageService {
         return true;
       }
 
-      // Digits match on mobile
+      // Digits match on mobile (e.g. 03087348367 vs 3087348367 vs +923087348367)
       if (cleanDigits.length >= 7 && (uPhoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(uPhoneDigits))) {
         return true;
       }
 
-      // Email username or alias
+      // Email match
       if (clean.includes('@') && (uEmail.includes('@') || uPhone.includes('@'))) {
         const targetEmail = uEmail.includes('@') ? uEmail : uPhone;
+        if (targetEmail.toLowerCase() === clean) return true;
         const cleanUser = clean.split('@')[0];
         const targetUser = targetEmail.split('@')[0];
-        if (targetUser.endsWith(cleanUser) || cleanUser.endsWith(targetUser) || targetUser.includes(cleanUser)) {
+        if (cleanUser && targetUser && (cleanUser === targetUser || targetUser.endsWith(cleanUser) || cleanUser.endsWith(targetUser))) {
           return true;
         }
       }
 
       // Special alias match for owner
-      if (clean === '58@gmail.com' || clean === 'maharmadni058@gmail.com' || clean === '058@gmail.com' || cleanDigits.endsWith('3087348367')) {
+      if (
+        clean === '58@gmail.com' ||
+        clean === 'maharmadni058@gmail.com' ||
+        clean === '058@gmail.com' ||
+        cleanDigits.endsWith('3087348367')
+      ) {
         if (u.id === 'user-mahar-owner' || uPhoneDigits.endsWith('3087348367') || uEmail.includes('58@')) {
           return true;
         }
@@ -345,13 +470,16 @@ class StorageService {
     });
 
     if (!user) {
-      return { success: false, message: `Account not found for "${phoneOrEmail}". Please click "Create Account" below to register.` };
+      return {
+        success: false,
+        message: `Account not found for "${phoneOrEmail}". Please click "Create Account" below to register.`
+      };
     }
 
-    const passMatches = 
-      !password || 
-      user.password === password || 
-      password === 'Mahar11223344' || 
+    const passMatches =
+      !password ||
+      user.password === password ||
+      password === 'Mahar11223344' ||
       password === 'password123' ||
       password === '112233' ||
       password === '11223344' ||
@@ -365,7 +493,7 @@ class StorageService {
     return { success: true, message: 'Login successful!', user };
   }
 
-  // Centralized Server Auth Register (stored on server for all mobiles)
+  // Multi-Device Cloud Registration (Stored in Cloud Firestore for all mobiles & admin)
   public async register(data: {
     fullName: string;
     phone: string;
@@ -373,35 +501,29 @@ class StorageService {
     password?: string;
     referralCode?: string;
   }): Promise<{ success: boolean; message: string; user?: User }> {
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      const resData = await res.json().catch(() => null);
-      if (res.ok && resData?.success && resData.user) {
-        this.setCurrentUserId(resData.user.id);
-        const users = this.getUsers().filter(u => u.id !== resData.user.id);
-        users.push(resData.user);
-        this.saveUsers(users);
-        await this.syncFromServer();
-        return { success: true, message: resData.message, user: resData.user };
-      } else if (resData && resData.message && (res.status === 400 || res.status === 409)) {
-        return { success: false, message: resData.message };
-      }
-    } catch (err) {
-      // Offline fallback
-    }
+    // 1. Fetch latest users from Firestore to avoid duplicate accounts
+    await this.fetchFirestoreUsers();
 
-    // Local registration
     const identifier = (data.phone || data.email || '').trim();
     const cleanIdentifier = identifier.toLowerCase();
+    const cleanDigits = identifier.replace(/\D/g, '');
     const isEmail = identifier.includes('@');
-    const users = this.getUsers();
+    const existingUsers = this.getUsers();
 
-    if (users.some(u => (u.phone && u.phone.toLowerCase() === cleanIdentifier) || (u.email && u.email.toLowerCase() === cleanIdentifier))) {
-      return { success: false, message: 'An account with this mobile or email already exists. Please Sign In.' };
+    // Check duplicate
+    const alreadyExists = existingUsers.some(u => {
+      const uPhone = (u.phone || '').toLowerCase();
+      const uEmail = (u.email || '').toLowerCase();
+      if (uPhone === cleanIdentifier || uEmail === cleanIdentifier) return true;
+      if (cleanDigits.length >= 8 && uPhone.replace(/\D/g, '').endsWith(cleanDigits)) return true;
+      return false;
+    });
+
+    if (alreadyExists) {
+      return {
+        success: false,
+        message: 'An account with this mobile or email already exists. Please Sign In.'
+      };
     }
 
     const generatedCode = 'ARM' + Math.floor(1000 + Math.random() * 9000);
@@ -410,14 +532,14 @@ class StorageService {
     const userPhone = !isEmail ? identifier : (data.phone && !data.phone.includes('@') ? data.phone.trim() : identifier);
 
     const newUser: User = {
-      id: 'user-' + Date.now(),
+      id: 'user-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       fullName: data.fullName.trim() || 'Investor',
       phone: userPhone,
       email: userEmail,
       password: data.password || 'Mahar11223344',
       referralCode: generatedCode,
       referredBy: data.referralCode?.trim().toUpperCase(),
-      balance: 10,
+      balance: 10, // Rs. 10 welcome bonus
       totalDeposited: 0,
       totalWithdrawn: 0,
       totalProfitEarned: 0,
@@ -428,18 +550,32 @@ class StorageService {
       createdAt: new Date().toISOString(),
       status: 'active'
     };
-    users.push(newUser);
-    this.saveUsers(users);
+
+    // 2. Write to Cloud Firestore so all other mobiles & admin see it instantly!
+    try {
+      await setDoc(doc(db, 'users', newUser.id), newUser);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `users/${newUser.id}`);
+    }
+
+    // 3. Update local cache
+    const currentUsers = this.getUsers();
+    currentUsers.push(newUser);
+    this.saveUsers(currentUsers);
     this.setCurrentUserId(newUser.id);
 
-    // Try syncing to server
-    fetch('/api/admin/sync-users', {
+    // 4. Secondary sync to server API
+    fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ users: [newUser] })
+      body: JSON.stringify(data)
     }).catch(() => {});
 
-    return { success: true, message: 'Account registered with Rs. 10 bonus!', user: newUser };
+    return {
+      success: true,
+      message: 'Account registered with Rs. 10 bonus!',
+      user: newUser
+    };
   }
 
   public logout(): void {
@@ -481,70 +617,91 @@ class StorageService {
       status: 'pending'
     });
 
+    // Write to Cloud Firestore so Admin sees it in real time
     try {
-      const res = await fetch('/api/deposits', {
+      await setDoc(doc(db, 'deposits', newDeposit.id), newDeposit);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `deposits/${newDeposit.id}`);
+    }
+
+    try {
+      await fetch('/api/deposits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(depositData)
       });
-      if (res.ok) {
-        await this.syncFromServer();
-      }
     } catch {}
 
     return newDeposit;
   }
 
   public async approveDeposit(depositId: string): Promise<void> {
-    try {
-      const res = await fetch(`/api/deposits/${depositId}/approve`, { method: 'POST' });
-      if (res.ok) {
-        await this.syncFromServer();
-        return;
-      }
-    } catch {}
-
-    // Local fallback
     const deposits = this.getDeposits();
     const deposit = deposits.find(d => d.id === depositId);
     if (!deposit || deposit.status !== 'pending') return;
+
     deposit.status = 'approved';
     deposit.reviewedAt = new Date().toISOString();
     this.saveDeposits(deposits);
+
+    // Update in Cloud Firestore
+    try {
+      await updateDoc(doc(db, 'deposits', depositId), {
+        status: 'approved',
+        reviewedAt: deposit.reviewedAt
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `deposits/${depositId}`);
+    }
 
     const users = this.getUsers();
     const user = users.find(u => u.id === deposit.userId);
     if (user) {
       user.balance += deposit.amount;
       user.totalDeposited += deposit.amount;
-      this.updateUser(user);
+      await this.updateUser(user);
       if (deposit.planId) {
         this.activatePlan(user.id, deposit.planId, true);
       }
     }
+
+    // Try server endpoint
+    try {
+      await fetch(`/api/deposits/${depositId}/approve`, { method: 'POST' });
+    } catch {}
+
     this.notify();
   }
 
   public async rejectDeposit(depositId: string, reason?: string): Promise<void> {
-    try {
-      const res = await fetch(`/api/deposits/${depositId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
-      if (res.ok) {
-        await this.syncFromServer();
-        return;
-      }
-    } catch {}
-
     const deposits = this.getDeposits();
     const deposit = deposits.find(d => d.id === depositId);
     if (!deposit || deposit.status !== 'pending') return;
+
     deposit.status = 'rejected';
     deposit.reviewedAt = new Date().toISOString();
     deposit.notes = reason || 'Payment could not be verified.';
     this.saveDeposits(deposits);
+
+    // Update in Firestore
+    try {
+      await updateDoc(doc(db, 'deposits', depositId), {
+        status: 'rejected',
+        reviewedAt: deposit.reviewedAt,
+        notes: deposit.notes
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `deposits/${depositId}`);
+    }
+
+    try {
+      await fetch(`/api/deposits/${depositId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+    } catch {}
+
     this.notify();
   }
 
@@ -572,92 +729,110 @@ class StorageService {
     accountNumber: string;
     bankName?: string;
   }): Promise<{ success: boolean; message: string; withdrawal?: Withdrawal }> {
+    const settings = this.getSettings();
+    if (data.amount < settings.minWithdrawal) {
+      return { success: false, message: `Minimum cashout is Rs. ${settings.minWithdrawal}` };
+    }
+    const users = this.getUsers();
+    const user = users.find(u => u.id === data.userId);
+    if (!user || user.balance < data.amount) {
+      return { success: false, message: 'Insufficient balance' };
+    }
+
+    user.balance -= data.amount;
+    await this.updateUser(user);
+
+    const newWithdrawal: Withdrawal = {
+      ...data,
+      id: 'wd-' + Date.now(),
+      status: 'pending',
+      fee: 0,
+      netAmount: data.amount,
+      createdAt: new Date().toISOString()
+    };
+    const withdrawals = this.getWithdrawals();
+    withdrawals.unshift(newWithdrawal);
+    this.saveWithdrawals(withdrawals);
+
+    // Save to Firestore
     try {
-      const res = await fetch('/api/withdrawals', {
+      await setDoc(doc(db, 'withdrawals', newWithdrawal.id), newWithdrawal);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `withdrawals/${newWithdrawal.id}`);
+    }
+
+    try {
+      await fetch('/api/withdrawals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      const resData = await res.json();
-      if (resData.success) {
-        await this.syncFromServer();
-        return resData;
-      }
-      return { success: false, message: resData.message || 'Withdrawal failed' };
-    } catch (e) {
-      // Local fallback
-      const settings = this.getSettings();
-      if (data.amount < settings.minWithdrawal) {
-        return { success: false, message: `Minimum cashout is Rs. ${settings.minWithdrawal}` };
-      }
-      const users = this.getUsers();
-      const user = users.find(u => u.id === data.userId);
-      if (!user || user.balance < data.amount) {
-        return { success: false, message: 'Insufficient balance' };
-      }
-      user.balance -= data.amount;
-      this.updateUser(user);
-      const newWithdrawal: Withdrawal = {
-        ...data,
-        id: 'wd-' + Date.now(),
-        status: 'pending',
-        fee: 0,
-        netAmount: data.amount,
-        createdAt: new Date().toISOString()
-      };
-      const withdrawals = this.getWithdrawals();
-      withdrawals.unshift(newWithdrawal);
-      this.saveWithdrawals(withdrawals);
-      return { success: true, message: 'Withdrawal submitted!', withdrawal: newWithdrawal };
-    }
+    } catch {}
+
+    return { success: true, message: 'Withdrawal submitted!', withdrawal: newWithdrawal };
   }
 
   public async approveWithdrawal(withdrawalId: string, remarks?: string): Promise<void> {
+    const withdrawals = this.getWithdrawals();
+    const wd = withdrawals.find(w => w.id === withdrawalId);
+    if (!wd || wd.status !== 'pending') return;
+
+    wd.status = 'approved';
+    wd.reviewedAt = new Date().toISOString();
+    this.saveWithdrawals(withdrawals);
+
     try {
-      const res = await fetch(`/api/withdrawals/${withdrawalId}/approve`, {
+      await updateDoc(doc(db, 'withdrawals', withdrawalId), {
+        status: 'approved',
+        reviewedAt: wd.reviewedAt
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `withdrawals/${withdrawalId}`);
+    }
+
+    try {
+      await fetch(`/api/withdrawals/${withdrawalId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ remarks })
       });
-      if (res.ok) {
-        await this.syncFromServer();
-        return;
-      }
     } catch {}
 
-    const withdrawals = this.getWithdrawals();
-    const wd = withdrawals.find(w => w.id === withdrawalId);
-    if (!wd || wd.status !== 'pending') return;
-    wd.status = 'approved';
-    wd.reviewedAt = new Date().toISOString();
-    this.saveWithdrawals(withdrawals);
     this.notify();
   }
 
   public async rejectWithdrawal(withdrawalId: string, reason?: string): Promise<void> {
-    try {
-      const res = await fetch(`/api/withdrawals/${withdrawalId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      });
-      if (res.ok) {
-        await this.syncFromServer();
-        return;
-      }
-    } catch {}
-
     const withdrawals = this.getWithdrawals();
     const wd = withdrawals.find(w => w.id === withdrawalId);
     if (!wd || wd.status !== 'pending') return;
+
     wd.status = 'rejected';
     this.saveWithdrawals(withdrawals);
+
     const users = this.getUsers();
     const user = users.find(u => u.id === wd.userId);
     if (user) {
       user.balance += wd.amount;
-      this.updateUser(user);
+      await this.updateUser(user);
     }
+
+    try {
+      await updateDoc(doc(db, 'withdrawals', withdrawalId), {
+        status: 'rejected',
+        notes: reason
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `withdrawals/${withdrawalId}`);
+    }
+
+    try {
+      await fetch(`/api/withdrawals/${withdrawalId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+    } catch {}
+
     this.notify();
   }
 
@@ -667,41 +842,36 @@ class StorageService {
     planId: string,
     payFromBalance = true
   ): Promise<{ success: boolean; message: string }> {
+    const plans = this.getPlans();
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return { success: false, message: 'Plan not found.' };
+
+    const users = this.getUsers();
+    const user = users.find(u => u.id === userId);
+    if (!user) return { success: false, message: 'User not found.' };
+
+    if (payFromBalance) {
+      if (user.balance < plan.price) {
+        return { success: false, message: `Insufficient balance for ${plan.name}` };
+      }
+      user.balance -= plan.price;
+    }
+
+    user.activePlanId = plan.id;
+    user.activePlanName = plan.name;
+    user.planActivatedAt = new Date().toISOString();
+    user.dailyTasksCompletedToday = 0;
+    await this.updateUser(user);
+
     try {
-      const res = await fetch('/api/plans/activate', {
+      await fetch('/api/plans/activate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, planId, payFromBalance })
       });
-      const data = await res.json();
-      if (data.success) {
-        await this.syncFromServer();
-        return data;
-      }
-      return { success: false, message: data.message || 'Plan activation failed' };
-    } catch (e) {
-      const plans = this.getPlans();
-      const plan = plans.find(p => p.id === planId);
-      if (!plan) return { success: false, message: 'Plan not found.' };
+    } catch {}
 
-      const users = this.getUsers();
-      const user = users.find(u => u.id === userId);
-      if (!user) return { success: false, message: 'User not found.' };
-
-      if (payFromBalance) {
-        if (user.balance < plan.price) {
-          return { success: false, message: `Insufficient balance for ${plan.name}` };
-        }
-        user.balance -= plan.price;
-      }
-
-      user.activePlanId = plan.id;
-      user.activePlanName = plan.name;
-      user.planActivatedAt = new Date().toISOString();
-      user.dailyTasksCompletedToday = 0;
-      this.updateUser(user);
-      return { success: true, message: `${plan.name} is now active!` };
-    }
+    return { success: true, message: `${plan.name} is now active!` };
   }
 
   // --- TASK QUIZ EARNINGS ---
@@ -716,46 +886,58 @@ class StorageService {
     explanation: string;
     message: string;
   }> {
-    try {
-      const res = await fetch('/api/tasks/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, taskQuizId, selectedOptionIndex })
+    const quizzes = this.getQuizzes();
+    const quiz = quizzes.find(q => q.id === taskQuizId);
+    if (!quiz) {
+      return { success: false, isCorrect: false, reward: 0, explanation: '', message: 'Quiz not found' };
+    }
+
+    const isCorrect = selectedOptionIndex === quiz.quizData.correctIndex;
+    const users = this.getUsers();
+    const user = users.find(u => u.id === userId);
+
+    if (isCorrect && user) {
+      const reward = quiz.reward || 27;
+      user.balance += reward;
+      user.totalProfitEarned += reward;
+      user.dailyTasksCompletedToday = (user.dailyTasksCompletedToday || 0) + 1;
+      await this.updateUser(user);
+
+      this.addTransaction({
+        userId: user.id,
+        type: 'task_earning',
+        amount: reward,
+        title: 'Task Profit Earned',
+        description: `Completed: ${quiz.title}`,
+        status: 'completed'
       });
-      const data = await res.json();
-      if (data.success) {
-        await this.syncFromServer();
-        return data;
-      }
+
       return {
-        success: false,
-        isCorrect: false,
-        reward: 0,
-        explanation: '',
-        message: data.message || 'Task submission failed'
-      };
-    } catch (e) {
-      return {
-        success: false,
-        isCorrect: false,
-        reward: 0,
-        explanation: '',
-        message: 'Network error. Please try again.'
+        success: true,
+        isCorrect: true,
+        reward,
+        explanation: quiz.quizData.explanation,
+        message: `Correct! Rs. ${reward} credited to your wallet.`
       };
     }
+
+    return {
+      success: true,
+      isCorrect: false,
+      reward: 0,
+      explanation: quiz.quizData.explanation,
+      message: 'Incorrect answer. Try again!'
+    };
   }
 
   // --- ADJUST USER BALANCE (ADMIN) ---
   public async adjustUserBalance(userId: string, amount: number): Promise<void> {
-    const settings = this.getSettings();
-    try {
-      await fetch('/api/users/adjust-balance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, amount, adminPassword: settings.adminSecretPassword })
-      });
-      await this.syncFromServer();
-    } catch {}
+    const users = this.getUsers();
+    const user = users.find(u => u.id === userId);
+    if (user) {
+      user.balance += amount;
+      await this.updateUser(user);
+    }
   }
 
   // --- TRANSACTIONS ---
