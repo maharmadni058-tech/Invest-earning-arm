@@ -114,17 +114,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </button>
 
         {/* Brand */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-amber-400/50 shadow-lg shadow-amber-500/20 bg-black shrink-0">
-            <img
-              src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
-              alt="Invest in Arm Logo"
-              className="w-full h-full object-cover"
-            />
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-400/30">
+            <TrendingUp className="w-5 h-5 text-white" />
           </div>
           <div>
             <h3 className="font-extrabold text-white text-base">Invest in Arm</h3>
-            <p className="text-[11px] text-slate-400">For Investment in Stock Market • Micro Profit</p>
+            <p className="text-xs text-slate-400">Micro-Investment & Daily Profit Portal</p>
           </div>
         </div>
 

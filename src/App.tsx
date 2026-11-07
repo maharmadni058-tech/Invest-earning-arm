@@ -240,16 +240,9 @@ export default function App() {
             <div className="space-y-6">
               {/* Public Welcome Hero */}
               <div className="relative overflow-hidden rounded-3xl p-6 sm:p-10 bg-gradient-to-br from-[#0c1822] via-[#09131c] to-[#060b10] border border-emerald-500/30 text-center shadow-2xl">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-3 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-2xl shadow-amber-500/30 bg-black">
-                  <img
-                    src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
-                    alt="Invest in Arm Logo"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-3">
                   <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Invest in Arm • For Investment in Stock Market</span>
+                  <span>Invest in Arm • Smart Micro-Investment Portal</span>
                 </div>
                 <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight max-w-2xl mx-auto leading-tight">
                   Micro-Investments with Guaranteed <span className="text-emerald-400">Daily Cash Payouts</span>

@@ -180,12 +180,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-amber-400/50 shadow-md bg-black shrink-0">
-              <img
-                src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
-                alt="Invest in Arm"
-                className="w-full h-full object-cover"
-              />
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
+              <ShieldCheck className="w-5 h-5 stroke-[2.5]" />
             </div>
             <div>
               <div className="flex items-center gap-2">

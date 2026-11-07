@@ -81,16 +81,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-amber-400/40 shadow-sm bg-black shrink-0">
-                <img
-                  src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
-                  alt="Invest in Arm"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <span className="text-xs font-semibold text-slate-300 tracking-wide uppercase flex items-center gap-1.5">
-                <Wallet className="w-3.5 h-3.5 text-amber-400" /> Total Balance
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-slate-400 tracking-wide uppercase flex items-center gap-1.5">
+                <Wallet className="w-3.5 h-3.5 text-emerald-400" /> Total Balance
               </span>
               <button
                 onClick={() => setShowBalance(!showBalance)}

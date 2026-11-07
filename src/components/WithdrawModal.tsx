@@ -103,12 +103,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-800">
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-amber-400/40 bg-black shrink-0">
-                <img
-                  src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
-                  alt="Invest in Arm"
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center border border-rose-500/30">
+                <ArrowUpRight className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div>
                 <h3 className="font-extrabold text-white text-base">Withdraw Cash</h3>
