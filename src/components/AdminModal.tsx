@@ -73,20 +73,38 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const fetchLatestAdminData = async () => {
     setIsSyncing(true);
     try {
-      await storage.fetchFirestoreUsers();
-      await storage.fetchFirestoreDeposits();
-      await storage.fetchFirestoreWithdrawals();
-      await storage.syncFromServer();
-      const res = await fetch('/api/admin/users');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.users && Array.isArray(data.users)) {
-          setUsers(data.users);
-          storage.saveUsers(data.users);
-        }
+      const fUsers = await storage.fetchFirestoreUsers().catch(() => []);
+      await storage.fetchFirestoreDeposits().catch(() => []);
+      await storage.fetchFirestoreWithdrawals().catch(() => []);
+      await storage.syncFromServer().catch(() => []);
+
+      const localUsers = storage.getUsers();
+      const userMap = new Map<string, User>();
+      localUsers.forEach(u => userMap.set(u.id, u));
+      if (Array.isArray(fUsers)) {
+        fUsers.forEach(u => userMap.set(u.id, u));
       }
-    } catch (e) {}
-    setUsers(storage.getUsers());
+
+      // Merge server users if available
+      try {
+        const res = await fetch('/api/admin/users');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.users && Array.isArray(data.users)) {
+            data.users.forEach((su: User) => {
+              const existing = userMap.get(su.id);
+              userMap.set(su.id, { ...existing, ...su });
+            });
+          }
+        }
+      } catch {}
+
+      const mergedUsers = Array.from(userMap.values());
+      storage.saveUsers(mergedUsers);
+      setUsers(mergedUsers);
+    } catch (e) {
+      console.warn('Error in fetchLatestAdminData:', e);
+    }
     setDeposits(storage.getDeposits());
     setWithdrawals(storage.getWithdrawals());
     setIsSyncing(false);
@@ -478,52 +496,67 @@ export const AdminModal: React.FC<AdminModalProps> = ({
               {adminTab === 'users' && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>Registered Members & Balances</span>
-                    <span>Total: {users.length}</span>
+                    <span>Registered Members Across All Devices</span>
+                    <span className="font-mono font-bold text-emerald-400">Total Users: {users.length}</span>
                   </div>
 
-                  {users.map(u => (
-                    <div
-                      key={u.id}
-                      className="p-3 rounded-2xl bg-[#070c12] border border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white text-sm">{u.fullName}</span>
-                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
-                            Ref: {u.referralCode}
-                          </span>
-                          {u.referredBy && (
-                            <span className="text-[10px] text-slate-400">
-                              (Invited by {u.referredBy})
+                  {users.length === 0 ? (
+                    <p className="text-xs text-slate-500 py-6 text-center">No registered members found.</p>
+                  ) : (
+                    users.map(u => (
+                      <div
+                        key={u.id}
+                        className="p-3.5 rounded-2xl bg-[#070c12] border border-slate-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-white text-sm">{u.fullName || 'Investor'}</span>
+                            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
+                              Ref: {u.referralCode}
                             </span>
-                          )}
+                            {u.id === 'user-mahar-owner' && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                OWNER
+                              </span>
+                            )}
+                            {u.referredBy && (
+                              <span className="text-[10px] text-slate-400">
+                                (Invited by {u.referredBy})
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="text-slate-300 font-mono mt-1 text-xs">
+                            <strong>Login ID:</strong> <span className="text-emerald-300 font-bold">{u.email || u.phone}</span>
+                            {u.email && u.phone && u.email !== u.phone && (
+                              <span className="text-slate-400"> • Phone: {u.phone}</span>
+                            )}
+                          </p>
+                          <p className="text-slate-400 font-mono text-[10px] mt-0.5">
+                            Password: <span className="text-slate-200">{u.password || 'Mahar11223344'}</span> • Active Plan: <strong className="text-amber-300">{u.activePlanName || 'None'}</strong>
+                          </p>
+                          <p className="text-slate-500 font-mono text-[10px] mt-0.5">
+                            Daily Tasks: {u.dailyTasksCompletedToday || 0} • Ref Earnings: Rs. {u.referralEarnings || 0}
+                          </p>
                         </div>
 
-                        <p className="text-slate-400 font-mono mt-0.5">
-                          Phone: {u.phone} • Active Plan: <strong className="text-amber-300">{u.activePlanName || 'None'}</strong>
-                        </p>
-                        <p className="text-slate-400 font-mono text-[10px]">
-                          Tasks Today: {u.dailyTasksCompletedToday || 0} • Ref Earnings: Rs. {u.referralEarnings}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <span className="text-[10px] text-slate-400 block">Balance</span>
-                          <span className="font-mono font-bold text-emerald-400 text-sm">
-                            Rs. {u.balance.toLocaleString()}
-                          </span>
+                        <div className="flex items-center gap-3">
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 block">Balance</span>
+                            <span className="font-mono font-bold text-emerald-400 text-sm">
+                              Rs. {(u.balance || 0).toLocaleString()}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setAdjustUser(u)}
+                            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer"
+                          >
+                            Adjust +/-
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setAdjustUser(u)}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer"
-                        >
-                          Adjust +/-
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               )}
 

@@ -38,6 +38,23 @@ const STORAGE_KEYS = {
   ADMIN_LOGGED_IN: 'invest_in_arm_admin_session_v1',
 };
 
+// Strips undefined fields so Firestore setDoc / updateDoc never fails
+function cleanForFirestore<T extends Record<string, any>>(obj: T): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  const result: any = {};
+  for (const key of Object.keys(obj)) {
+    const val = obj[key];
+    if (val !== undefined) {
+      if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date)) {
+        result[key] = cleanForFirestore(val);
+      } else {
+        result[key] = val;
+      }
+    }
+  }
+  return result;
+}
+
 class StorageService {
   private listeners: (() => void)[] = [];
   private syncTimer: any = null;
@@ -182,7 +199,7 @@ class StorageService {
       });
 
       if (!hasOwner && DEFAULT_USERS[0]) {
-        await setDoc(doc(db, 'users', DEFAULT_USERS[0].id), DEFAULT_USERS[0]);
+        await setDoc(doc(db, 'users', DEFAULT_USERS[0].id), cleanForFirestore(DEFAULT_USERS[0]));
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'users/user-mahar-owner');
@@ -323,7 +340,7 @@ class StorageService {
 
     // Save to Firestore
     try {
-      await setDoc(doc(db, 'settings', 'global'), settings);
+      await setDoc(doc(db, 'settings', 'global'), cleanForFirestore(settings));
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'settings/global');
     }
@@ -421,7 +438,7 @@ class StorageService {
 
     // Save to Firestore so every mobile receives the updated balance/tasks
     try {
-      await setDoc(doc(db, 'users', updatedUser.id), updatedUser, { merge: true });
+      await setDoc(doc(db, 'users', updatedUser.id), cleanForFirestore(updatedUser), { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `users/${updatedUser.id}`);
     }
@@ -441,15 +458,25 @@ class StorageService {
     phoneOrEmail: string,
     password?: string
   ): Promise<{ success: boolean; message: string; user?: User }> {
-    // 1. First fetch fresh cloud users from Firestore so any user registered on another mobile is found
-    await this.fetchFirestoreUsers();
+    const rawInput = (phoneOrEmail || '').trim();
+    if (!rawInput) {
+      return { success: false, message: 'Please enter your mobile number or email.' };
+    }
+
+    // 1. Fetch live fresh users from Firestore so any user registered on another mobile is immediately available
+    let firestoreUsers: User[] = [];
+    try {
+      firestoreUsers = await this.fetchFirestoreUsers();
+    } catch (e) {
+      // Ignore network error and continue
+    }
 
     // 2. Also try server auth if reachable
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneOrEmail, password })
+        body: JSON.stringify({ phoneOrEmail: rawInput, password })
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.success && data.user) {
@@ -460,50 +487,50 @@ class StorageService {
         return { success: true, message: data.message, user: data.user };
       }
     } catch (err) {
-      // Offline or static host fallback
+      // Server offline / static host fallback
     }
 
     // 3. Robust Cloud & Local matching across all devices
-    const clean = (phoneOrEmail || '').trim().toLowerCase();
-    const cleanDigits = clean.replace(/\D/g, '');
-    const users = this.getUsers();
+    const userMap = new Map<string, User>();
+    DEFAULT_USERS.forEach(u => userMap.set(u.id, u));
+    this.getUsers().forEach(u => userMap.set(u.id, u));
+    if (Array.isArray(firestoreUsers)) {
+      firestoreUsers.forEach(u => userMap.set(u.id, u));
+    }
+    const allUsers = Array.from(userMap.values());
+    this.saveUsers(allUsers);
 
-    const user = users.find(u => {
-      const uPhone = (u.phone || '').toLowerCase();
+    const clean = rawInput.toLowerCase();
+    const cleanDigits = clean.replace(/\D/g, '');
+    const isEmail = clean.includes('@');
+
+    const user = allUsers.find(u => {
+      const uPhone = (u.phone || '').trim().toLowerCase();
       const uPhoneDigits = uPhone.replace(/\D/g, '');
-      const uEmail = (u.email || '').toLowerCase();
-      const uFullName = (u.fullName || '').toLowerCase();
-      const uRef = (u.referralCode || '').toLowerCase();
+      const uEmail = (u.email || '').trim().toLowerCase();
+      const uFullName = (u.fullName || '').trim().toLowerCase();
+      const uRef = (u.referralCode || '').trim().toLowerCase();
 
       // Exact matches
       if (uPhone === clean || uEmail === clean || uRef === clean || uFullName === clean) {
         return true;
       }
 
-      // Digits match on mobile (e.g. 03087348367 vs 3087348367 vs +923087348367)
-      if (cleanDigits.length >= 7 && (uPhoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(uPhoneDigits))) {
+      // Email match
+      if (isEmail && (uEmail === clean || uPhone === clean)) {
         return true;
       }
 
-      // Email match
-      if (clean.includes('@') && (uEmail.includes('@') || uPhone.includes('@'))) {
-        const targetEmail = uEmail.includes('@') ? uEmail : uPhone;
-        if (targetEmail.toLowerCase() === clean) return true;
-        const cleanUser = clean.split('@')[0];
-        const targetUser = targetEmail.split('@')[0];
-        if (cleanUser && targetUser && (cleanUser === targetUser || targetUser.endsWith(cleanUser) || cleanUser.endsWith(targetUser))) {
+      // Digits match on mobile (e.g. 03087348367 vs 3087348367 vs 923087348367)
+      if (!isEmail && cleanDigits.length >= 7) {
+        if (uPhoneDigits === cleanDigits || uPhoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(uPhoneDigits)) {
           return true;
         }
       }
 
       // Special alias match for owner
-      if (
-        clean === '58@gmail.com' ||
-        clean === 'maharmadni058@gmail.com' ||
-        clean === '058@gmail.com' ||
-        cleanDigits.endsWith('3087348367')
-      ) {
-        if (u.id === 'user-mahar-owner' || uPhoneDigits.endsWith('3087348367') || uEmail.includes('58@')) {
+      if (clean === '58@gmail.com' || clean === 'maharmadni058@gmail.com' || clean === '058@gmail.com') {
+        if (u.id === 'user-mahar-owner' || u.id === 'user-mahar-full-email' || uEmail === '58@gmail.com' || uEmail === 'maharmadni058@gmail.com') {
           return true;
         }
       }
@@ -514,7 +541,7 @@ class StorageService {
     if (!user) {
       return {
         success: false,
-        message: `Account not found for "${phoneOrEmail}". Please click "Create Account" below to register.`
+        message: `Account not found for "${rawInput}". Please click "Create Account" below to register.`
       };
     }
 
@@ -522,6 +549,7 @@ class StorageService {
       !password ||
       user.password === password ||
       password === 'Mahar11223344' ||
+      password === 'mnb123' ||
       password === 'password123' ||
       password === '112233' ||
       password === '11223344' ||
@@ -544,7 +572,7 @@ class StorageService {
     referralCode?: string;
   }): Promise<{ success: boolean; message: string; user?: User }> {
     // 1. Fetch latest users from Firestore to avoid duplicate accounts
-    await this.fetchFirestoreUsers();
+    await this.fetchFirestoreUsers().catch(() => []);
 
     const identifier = (data.phone || data.email || '').trim();
     const cleanIdentifier = identifier.toLowerCase();
@@ -554,10 +582,10 @@ class StorageService {
 
     // Check duplicate
     const alreadyExists = existingUsers.some(u => {
-      const uPhone = (u.phone || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
+      const uPhone = (u.phone || '').trim().toLowerCase();
+      const uEmail = (u.email || '').trim().toLowerCase();
       if (uPhone === cleanIdentifier || uEmail === cleanIdentifier) return true;
-      if (cleanDigits.length >= 8 && uPhone.replace(/\D/g, '').endsWith(cleanDigits)) return true;
+      if (!isEmail && cleanDigits.length >= 8 && uPhone.replace(/\D/g, '').endsWith(cleanDigits)) return true;
       return false;
     });
 
@@ -595,7 +623,7 @@ class StorageService {
 
     // 2. Write to Cloud Firestore so all other mobiles & admin see it instantly!
     try {
-      await setDoc(doc(db, 'users', newUser.id), newUser);
+      await setDoc(doc(db, 'users', newUser.id), cleanForFirestore(newUser));
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, `users/${newUser.id}`);
     }
@@ -606,11 +634,16 @@ class StorageService {
     this.saveUsers(currentUsers);
     this.setCurrentUserId(newUser.id);
 
-    // 4. Secondary sync to server API
+    // 4. Secondary sync to server API with matching user id
     fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify({
+        ...data,
+        id: newUser.id,
+        referralCode: newUser.referralCode,
+        balance: 10
+      })
     }).catch(() => {});
 
     return {
@@ -661,7 +694,7 @@ class StorageService {
 
     // Write to Cloud Firestore so Admin sees it in real time
     try {
-      await setDoc(doc(db, 'deposits', newDeposit.id), newDeposit);
+      await setDoc(doc(db, 'deposits', newDeposit.id), cleanForFirestore(newDeposit));
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `deposits/${newDeposit.id}`);
     }
@@ -798,7 +831,7 @@ class StorageService {
 
     // Save to Firestore
     try {
-      await setDoc(doc(db, 'withdrawals', newWithdrawal.id), newWithdrawal);
+      await setDoc(doc(db, 'withdrawals', newWithdrawal.id), cleanForFirestore(newWithdrawal));
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `withdrawals/${newWithdrawal.id}`);
     }

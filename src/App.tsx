@@ -240,9 +240,16 @@ export default function App() {
             <div className="space-y-6">
               {/* Public Welcome Hero */}
               <div className="relative overflow-hidden rounded-3xl p-6 sm:p-10 bg-gradient-to-br from-[#0c1822] via-[#09131c] to-[#060b10] border border-emerald-500/30 text-center shadow-2xl">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 mx-auto mb-3 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-2xl shadow-amber-500/30 bg-black">
+                  <img
+                    src="/assets/aistudio/WhatsApp_Image_2026-11-06_at_13.51.57_2043a638.jpeg"
+                    alt="Invest in Arm Logo"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-semibold mb-3">
                   <TrendingUp className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Invest in Arm • Smart Micro-Investment Portal</span>
+                  <span>Invest in Arm • For Investment in Stock Market</span>
                 </div>
                 <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight max-w-2xl mx-auto leading-tight">
                   Micro-Investments with Guaranteed <span className="text-emerald-400">Daily Cash Payouts</span>
@@ -323,8 +330,16 @@ export default function App() {
         )}
 
         {/* Subtle Footer */}
-        <footer className="mt-12 pt-6 pb-4 border-t border-slate-900/80 text-center text-[11px] text-slate-500">
-          <p>© 2026 {settings.siteName} • All Rights Reserved</p>
+        <footer className="mt-12 pt-6 pb-4 border-t border-slate-900/80 text-center text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-center gap-2">
+          <span>© 2026 {settings.siteName} • All Rights Reserved</span>
+          <span className="hidden sm:inline">•</span>
+          <button
+            onClick={() => setIsAdminOpen(true)}
+            className="text-slate-500 hover:text-amber-400 underline cursor-pointer transition flex items-center gap-1"
+          >
+            <ShieldCheck className="w-3 h-3 text-amber-500/70" />
+            <span>Admin Portal</span>
+          </button>
         </footer>
       </main>
 
